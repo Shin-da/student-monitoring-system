@@ -15,6 +15,7 @@ public/assets/*.min.js.map
 .env
 .env.local
 config/local.php
+config/config.php
 
 # Logs
 logs/*.log

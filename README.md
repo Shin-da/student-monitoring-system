@@ -61,13 +61,15 @@ A comprehensive, enterprise-grade Student Monitoring System (SSMS) with modern U
 - Modern web browser
 
 ### Quick Setup (5 minutes)
-1. **Clone/Download** - Place in `C:\xampp\htdocs\student-monitoring`
+1. **Clone Repository** - `git clone https://github.com/YOUR_USERNAME/student-monitoring-system.git`
 2. **Install Dependencies** - Run `composer install`
-3. **Create Database** - In phpMyAdmin, create a database named `student_monitoring`
-4. **Minimal Auth Schema** - Run `php database/update_schema.php` (drops old tables, creates `users`, seeds admin)
-5. **Admin Credentials** - Email: `admin@school.edu` Password: `Admin!is-me04`
-6. **Access System** - Visit `http://localhost/student-monitoring/public/`
-7. (Optional later) Registration and role-based user creation via Admin panel
+3. **Configure** - Copy `config/config.example.php` to `config/config.php` and update with your database settings
+4. **Create Database** - In phpMyAdmin, create a database named `student_monitoring`
+5. **Setup Schema** - Run `php database/update_schema.php` (creates tables and seeds admin)
+6. **Admin Credentials** - Email: `admin@school.edu` Password: `Admin!is-me04`
+7. **Access System** - Visit `http://localhost/student-monitoring-system/public/` (adjust URL based on your folder name)
+
+> **🤝 New Collaborator?** See [COLLABORATION_SETUP.md](COLLABORATION_SETUP.md) for detailed setup instructions.
 
 ### Testing
 ```bash
@@ -180,9 +182,9 @@ composer test
 For complete setup instructions, see [docs/SETUP_GUIDE.md](docs/SETUP_GUIDE.md)
 
 ### Quick Start
-1. **Database Setup**: Use minimal setup `php database/update_schema.php`
-2. **Create Admin**: Already created (see credentials above). To re-seed, rerun the command.
-3. **Access**: Visit `http://localhost/student-monitoring/public/`
+1. **Configure**: Copy `config/config.example.php` to `config/config.php` and update database settings
+2. **Database Setup**: Run `php database/update_schema.php` (creates tables and admin user)
+3. **Access**: Visit `http://localhost/student-monitoring-system/public/` (adjust based on your folder)
 4. **Login**: Use `admin@school.edu` / `Admin!is-me04`
 
 ### PWA and subfolder deployment
