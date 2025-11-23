@@ -1,0 +1,944 @@
+A WEB-BASED SMART STUDENT MONITORING SYSTEM WITH
+
+AI-POWERED PERFORMANCE ANALYTICS AND EARLY
+INTERVENTION ALERTS FOR ST. IGNATIUS ACADEMY
+A Capstone Project Presented to the Faculty of the
+College of Information Technology and Computer Studies
+Pamantasan ng Lungsod ng Muntinlupa
+In Partial Fulfilment of the Requirements for the Degree
+Bachelor of Science in Information Technology
+BALASICO, HERSHEY NICOLE L.
+CHAVEZ, BRYLLE C.
+ZARATE, ADRIAN CARLO S.
+JUNE 2025
+i
+TABLE OF CONTENTS
+Page(s)
+Title Page i
+Table of Contents ii
+List of Figures iv
+List of Tables v
+CHAPTER
+1. INTRODUCTION
+Project Context 1
+Purpose and Description 3
+Objective of the Study 5
+Scope and Limitation 6
+2. REVIEW OF THE RELATED LITERATURE AND STUDIES
+Technical Background 7
+Related Literature 8
+Related Studies 12
+Definition of Term 16
+
+ii
+
+3. METHODOLOGY
+Requirement Analysis
+Requirement Documentation
+Design of Software, Systems, Product, and/or Processes
+System Architecture
+Development and Testing
+Implementation Plan
+REFERENCES
+LIST OF FIGURES
+Figure No. Pages(s)
+Functional Decomposition Diagram of the Existing
+Student Performance Monitoring Process 19
+Diagram of the Existing Manual Student
+Performance Monitoring Process 20
+Use Case Diagram of the Proposed System 21
+Functional Decomposition Diagram of the Proposed System 23
+Conceptual Framework Diagram of the Proposed Title 24
+System Architecture of the Proposed Title 26
+Agile Methodology 27
+iv
+
+LIST OF TABLES
+Table No. Pages(s)
+Alpha Testing Procedure 29
+Beta Testing Procedures 30
+ISO/IEC 25010:201 1 Software Evaluation Tool for IT Experts 31
+ISO/IEC 25010:201 1 Software Evaluation Tool for Actual Users 32
+Matrix for the Likert Scale used in the research instrument 33
+Implementation Plan Table 34
+v
+
+CHAPTER 1
+INTRODUCTION
+PROJECT CONTEXT
+In today’s educational landscape, the integration of advanced technologies plays a
+big role in improving the efficiency, accuracy, and transparency of academic processes.
+However, many schools still use old-fashioned ways to monitor student performance, which
+often leads to mistakes and delays. These manual systems take too much time and effort,
+especially for teachers who are already managing multiple responsibilities. This makes it
+harder to track students progress accurately and give the right support at the right time.
+Because of this, there is a need for a system that can help schools manage academic records
+more efficiently and effectively.
+
+This research will be conducted at St. Ignatius Academy, located in Bayanan,
+Muntinlupa City, with a focus on the Senior High School department. The researchers
+conducted an interview, and according to the school’s administrators and teachers, their
+current process often causes delays and makes it difficult to manage student records properly.
+Despite using a computerized system, there are still problems with recording and organizing
+students' academic information. As a result, the school administrator struggles to monitor and
+process all student records efficiently. The current approach is also time-consuming for both
+administrators and teachers. These challenges not only increase the teachers' workload but
+also slow down the decision-making process when students need support or are at risk of
+failing.
+
+The main problem this study aims to solve is the delay and user-friendly system to
+monitor student performance. The current manual process makes it difficult for teachers to
+keep up, especially when they need to check or update records regularly. This can result in
+late interventions for students who are struggling and may even affect their academic success.
+By addressing this issue, the school can prevent long-term setbacks and improve student
+achievement. It also allows teachers to focus more on teaching, rather than spending too
+much time on paperwork or constantly reminding students about their academic performance
+status.
+
+Addressing this problem is important because it will make the academic monitoring
+process smoother, faster, and more accurate. It will also lessen the stress and workload of
+teachers by reducing manual tasks. More importantly, it will help students improve because
+teachers can easily identify those students who need to be reminded about their academic
+performance. When schools use better systems, it benefits everyone—teachers, students, and
+even parents who want to stay informed about their child’s performance.
+
+This study proposes a smart education monitoring system that will track student
+performance and send early warning alerts when needed. The system will be web-based and
+easy for teachers to use. They will be able to log in, manage records, and view academic data
+anytime through a secure website. This solution will help St. Ignatius Academy manage
+student records better, reduce errors, and boost productivity. It will also improve
+communication between teachers and students, making the learning experience more
+effective and meaningful.
+
+PURPOSE AND DESCRIPTION
+The purpose of this project is to help teachers and school administrators monitor
+student academic performance more efficiently. The system will be a web-based academic
+monitoring tool designed for the Senior High School teachers of St. Ignatius Academy. It will
+allow them to track, analyze, and manage students' grades and performance in using the
+system. The system aims to reduce the difficulties that teachers face in recording and
+checking student progress every grading period.
+
+This system will serve as an easy-to-use website that will lessen the workload of
+teachers by providing a centralized space where all student data can be stored and updated.
+Teachers will also be able to assess the different areas of student performance, helping them
+give better support and guidance. This will help identify students who are struggling and need
+help.
+
+With the help of this system, teachers can complete their tasks faster and with fewer
+mistakes compared to the current manual method. The system will also turn data into simple
+graphs and reports, making it easier for teachers to understand and explain student progress.
+This will allow them to make better decisions when giving feedback or recommendations for
+students who are not performing well.
+
+Overall, this project will not only benefit the administrators but also the teachers and
+students of St. Ignatius Academy. Teachers will save time and effort, while students will
+better understand the areas where they need to improve. The system is built to be
+user-friendly so that it can be used easily. By using this system, the school can improve how
+
+it manages academic records and support better learning outcomes.
+
+Below are the following beneficiaries who will benefited the system:
+
+Administrator, the system will help the administrator to manage and perform tasks
+more easily compared to the current method of monitoring students. The system will assist
+administrators in managing data more effectively by graphically illustrating student
+performance.
+
+Teachers, the system aims to help teachers by automatically computing grades and
+sending early intervention alerts to students who are at risk of failing. This reduces the need
+for teachers to spend extra time repeatedly notifying students about their academic status.
+
+Students, the students will benefit from the system by receiving notifications if they
+are at risk of failing. This allows them to reach out to their teachers immediately to address
+any concerns. They can also make up for missed work or requirements by discussing with
+their teachers what actions they need to take to avoid failing grades.
+
+Researchers, the researchers will benefit from the system as it helps them visualize
+and understand problems during the development process. It also supports logical thinking
+when dealing with system errors or issues, helping them improve their analytical and
+problem-solving skills.
+
+Future Researchers, this system can serve as a guide or reference for future
+researchers. It can be used as a basis for their own research studies, especially if the topic is
+related. It may also provide helpful data and additional information to support their work.
+
+OBJECTIVE OF THE STUDY
+General Objective
+The main objective of this study is to develop a smart student monitoring system
+integrated with AI-powered performance analytics and early intervention alerts to enhance
+academic performance tracking and provide timely support for students at St. Ignatius
+Academy.
+Specific Objectives
+
+To design the Web-Based Smart Student Monitoring System with AI-Powered
+Performance Analytics and Early Intervention Alerts for St. Ignatius Academy with
+the following features:
+a. Capable of collecting student academic activities and performance data
+through teacher inputs and records.
+b. Capable of presenting summarized student performance using dashboards
+and visual reports for easier monitoring by the school administrator.
+c. Capable of analyzing students' academic data and identifying those who are
+at risk of academic failure.
+d. Capable of delivering early intervention alerts to inform students of possible
+academic risks.
+To develop the web-based Smart Student Monitoring System with AI-Powered
+Performance Analytics and Early Intervention Alerts for St. Ignatius Academy using
+HTML, CSS, and JavaScript for the front end, and MySQL for the database.
+To test and improve the system using Alpha and Beta Testing.
+To evaluate the system using ISO/IEC 25010:201 1 Software Evaluation for IT experts
+and actual users.
+To implement the proposal system to St. Ignatius Academy.
+SCOPE AND LIMITATION
+The scope of the study is to develop and implement a Smart Student Monitoring
+System equipped with AI-powered performance analytics and early intervention alerts
+developed for the needs of St. Ignatius Academy. The system is designed to collect and
+analyze student academic data and performance in order to identify learning trends and
+predict potential academic risks. Through AI-driven algorithms, the system will generate
+alerts when students show signs of poor academic performance, enabling early intervention
+and timely support. Data privacy and user authentication will be prioritized to protect
+students and teachers information throughout the monitoring process.
+This study is limited to the internal academic monitoring of the students enrolled at
+St. Ignatius Academy and does not cover external student activities or personal matters
+outside the school environment. The AI model used in the system relies on the accuracy and
+completeness of the data stored in the database; therefore, any inaccurate or missing data may
+reduce the effectiveness of the analytics and alerts. Additionally, real-time classroom
+behavior monitoring and psychological evaluations are outside the scope of this system. The
+initial implementation will be limited to select grade levels and subjects, and full deployment
+will depend on further testing and training of school personnel.
+
+CHAPTER 2
+REVIEW OF RELATED LITERATURES & STUDIES
+This chapter presents the review of related literature and studies underlying the
+development of a smart student monitoring system with integrated AI analytics and early
+intervention alerts. It explores existing systems and research efforts related to academic
+performance tracking, automated monitoring tools, data analytics in education, and
+alert-based intervention strategies.
+TECHNICAL BACKGROUND
+The front-end of the system will be developed using HTML, CSS, and JavaScript.
+HTML will be used to structure the content of the web pages, CSS will define the layout and
+appearance of elements, and JavaScript will make the system interactive, such as checking if
+a form is filled out correctly in real time. Visual Studio Code (VS Code) will be the integrated
+development environment (IDE) for writing, testing, and fixing the source code. It is chosen
+because it supports web development and offers helpful extensions.
+The back-end of the system will be developed using XAMPP, which includes
+Apache to run the local server, PHP to handle the system’s logic and user actions, and
+MySQL to store and manage student records such as grades, attendance, and performance
+data. The system will include a rule-based AI feature that automatically checks student
+academic data, such as quiz scores, activities, major exam results, and attendance. If a
+student’s average grade falls below the passing mark, the system will send an alert to both the
+student and the teacher. This helps teachers give support early when a student is at risk of
+failing.
+
+To improve the system’s appearance and usability, the developers will use Canva to
+design icons, banners, and other visual elements. These designs will help make the system
+easier to understand and more attractive for both students and teachers. The team will also
+use Draw.io to create system diagrams, including Functional Decomposition Diagram (FDD)
+and database designs. These diagrams will help explain how the system works and support
+the documentation process.
+During testing and deployment, the system will be installed on computers or laptops
+with average hardware specifications. A common setup may include an Intel Core i
+processor, 8GB of RAM, and a solid-state drive (SSD) to keep the system running smoothly.
+Local hosting will use XAMPP within a local area network (LAN) during testing. If the
+system needs to be accessed outside the school, it can be uploaded to an online web hosting
+service. Basic networking tools like Wi-Fi routers or network switches may be used to
+connect multiple devices within the school.
+
+RELATED LITERATURE
+
+Schools are now turning to data-driven strategies to improve decision-making in the
+classroom. With the help of student data, teachers can quickly spot learners who are
+struggling academically. This allows for earlier interventions, which can make the teaching
+process more effective. When educational institutions use data responsibly, student learning
+outcomes improve. Systems like the proposed web-based smart student monitoring platform
+are built to support such data-driven approaches that empower teachers to meet students’
+unique needs [1].
+
+Learning dashboards that gather and display academic data in one platform are
+essential in modern education. These tools give teachers a clearer understanding of student
+performance by providing real-time insights. Through visualized analytics, instructors can
+make timely adjustments to their teaching strategies to better match students’ learning styles.
+As a result, lessons can be tailored to improve individual progress. A smart student
+monitoring system integrates these dashboards to promote more personalized and efficient
+learning environments [2].
+
+Artificial Intelligence tools that offer predictive analytics have shown promise in
+identifying students at risk of failing or dropping out. By analyzing patterns in attendance,
+performance, and engagement, these systems provide early alerts for intervention. Educators
+can use these alerts to take proactive steps, such as offering extra help or counseling. This
+kind of technology plays an important role in student monitoring systems, particularly when
+early support can make a meaningful difference. Implementing this into platforms like the
+proposed system can support student retention and success [3].
+
+Understanding student performance requires looking beyond test scores. Participation
+in class, behavior during school activities, and general attitude all contribute to academic
+development. Smart systems that combine these data points provide a more complete view of
+each student. They allow for better tracking of student engagement and classroom behavior.
+These insights are valuable for schools aiming to support the holistic growth of their students
+[4].
+
+The rise of distance learning has made it more difficult for educators to monitor
+student progress. Tools that offer real-time tracking and performance reports have become
+essential in remote and hybrid settings. Teachers can provide timely feedback and adjust
+lesson delivery to ensure students are keeping up. This is especially important when in-person
+observation is limited. Web-based smart monitoring systems fill this gap by providing
+structure and oversight in all learning formats [5].
+
+Educational institutions can also use data mining techniques to discover hidden
+patterns in student records. These patterns help identify learners who may require additional
+academic support. Through targeted interventions, teachers can address these needs more
+effectively. Smart systems that include data mining features enable faster, more informed
+responses to student challenges. This promotes better outcomes across the school [6].
+
+Systems that are accessible through the web make student monitoring more efficient
+and convenient. Teachers and school leaders can access student data anytime, allowing for
+quick decisions about academic support. These platforms provide up-to-date information that
+helps track both progress and challenges. With a well-designed interface, web-based systems
+improve school organization. They are an essential component in modernizing academic
+monitoring [7].
+
+Student performance systems that present academic data in clear, structured formats
+help improve decision-making in schools. Teachers can easily interpret progress reports and
+adjust their strategies accordingly. These systems also assist in planning lessons and
+managing classes more effectively. The ability to quickly identify trends in student
+
+performance supports a more responsive approach to education. Such features are vital in
+systems like the one proposed for St. Ignatius Academy [8].
+
+AI-powered tools that analyze student learning behavior offer new opportunities for
+academic support. By detecting patterns of underperformance early, these tools help teachers
+intervene before problems worsen. Quick responses lead to better learning outcomes and
+more positive academic experiences. Integrating these tools into student monitoring platforms
+enhances their value. They promote smarter systems capable of adapting to each student’s
+needs [9].
+
+When real-time data is available, teachers can make instant changes during lessons.
+This allows for more dynamic classroom management and better engagement. Students
+benefit from adjustments that match their pace and understanding. A responsive teaching
+approach helps maintain focus and improves lesson effectiveness. Real-time feedback
+systems are vital in any smart student monitoring solution [10].
+
+AI-supported platforms can centralize various aspects of student monitoring such as
+test results, attendance, and behavioral data. Having this information in one place simplifies
+the task of tracking student progress. It helps both educators and parents stay informed about
+a learner’s academic journey. These features keep students accountable and focused on their
+goals. They are particularly useful in developing more organized, intelligent school
+environments [11].
+
+Artificial Intelligence (AI) is becoming an essential tool in improving student success
+by enabling early identification of academic struggles and providing tailored interventions.
+
+AI systems can analyze large volumes of student data, such as attendance records, grades,
+and behavioral patterns, to recognize signs of declining performance before they become
+critical. These technologies not only support educators in making informed decisions but also
+help institutions create more inclusive and responsive learning environments. By integrating
+AI into student monitoring platforms, schools can enhance their ability to support learners
+more effectively and promote better academic outcomes [12].
+
+Early warning systems are helpful in spotting students who might fall behind. They
+are especially important in virtual learning setups where student activity is harder to track.
+These tools notify educators of concerning trends so they can act quickly. Timely
+interventions help prevent long-term academic problems. Schools like St. Ignatius Academy
+can enhance student support using this approach [13].
+
+While AI systems offer useful insights, they may also affect how students feel about
+being monitored. Continuous observation could make some learners uncomfortable. It's
+important to implement such technologies with clear communication and a focus on support.
+A well-balanced system ensures students feel safe and respected. With the right approach,
+smart monitoring can lead to both improved performance and student well-being [14].
+
+RELATED STUDIES
+A school-based web system was developed to improve how student records are
+handled. It made administrative tasks faster and allowed better tracking of academic
+performance. By organizing student data in a central platform, the school could make more
+accurate plans and provide targeted interventions. This not only improved efficiency but also
+
+raised overall school performance. Systems like these show the value of web-based tools in
+educational settings [15].
+
+Tracking systems that deliver updates in real time allow teachers to adjust their
+methods without delay. When students need support, they can get help right away instead of
+waiting for formal assessments. This kind of flexibility improves teaching quality and student
+outcomes. It also reduces time spent on repetitive tasks. Schools using such systems report
+better classroom engagement [16].
+
+Progress tracking tools help educators measure student development over time. These
+systems offer consistent updates that teachers can use to shape instruction. With regular
+reports, it becomes easier to guide each learner on a personalized path. These systems also
+make classroom organization more manageable. They play a key role in performance-based
+education [17].
+
+An online attendance monitoring system was adopted by a school in the Philippines,
+leading to better discipline and record accuracy. Teachers were able to access attendance logs
+with ease, reducing paperwork and improving accountability. This system encouraged
+students to be more consistent in their attendance. The tool also made daily routines simpler
+for faculty. Such improvements support smoother school operations [18].
+
+AI in education brings many benefits, but it also raises some concerns. While it
+improves learning tracking and offers new insights, some students feel uncomfortable being
+monitored closely. Data privacy and emotional impact must be considered when
+
+implementing AI tools. Schools must develop clear policies to ensure responsible use. A
+thoughtful balance protects student welfare while using technology for growth [19].
+
+A smart AI system was designed to watch over student progress and generate alerts
+for those at risk. This helped schools step in before problems worsened, improving academic
+success rates. Teachers could prioritize support where it was needed most. The system proved
+useful in maintaining high standards. Early alerts are now essential in effective student
+monitoring [20].
+
+AI models were used to predict future grades and behavioral trends in students. This
+predictive capability helped schools intervene before academic or behavioral issues became
+serious. Teachers could develop better instructional plans tailored to students' needs. Such
+features are powerful tools in ensuring continuous improvement. These applications form the
+backbone of AI-powered education systems [21].
+
+Tools that identify struggling students before issues become severe are changing
+classroom management. Teachers are no longer limited to reacting after failure happens.
+Instead, they can prevent it. These systems allow for more focused instruction and better
+academic support. Smart tools like these are essential for schools seeking to modernize
+learning [22].
+
+A study developed a data mining-based model that accurately predicted student
+performance. This system provided a deeper understanding of learning patterns and needs.
+Teachers were able to build better learning experiences based on those insights. Classroom
+
+performance improved across multiple subjects. These innovations demonstrate how
+analytics contribute to student growth [23].
+
+Effective tracking tools have a direct effect on academic achievement and classroom
+discipline. They offer clear and consistent records that help both teachers and administrators
+make decisions. These systems reduce delays in support and increase student accountability.
+The classroom environment becomes more productive. Smart systems help in creating
+structured and responsive educational spaces [24].
+
+A school deployed an AI-powered attendance tracking system that streamlined
+teacher workloads. The system minimized manual errors and offered accurate daily logs.
+Teachers saved time and focused more on lesson planning. It enhanced reliability and
+consistency in school records. These types of tools improve institutional efficiency [25].
+
+An IoT-based smart school system was designed to monitor various student activities
+automatically. It helped teachers maintain order and improve oversight during lessons. This
+real-time visibility led to better student conduct. Schools using such systems reported
+stronger classroom management. These features are essential in preparing for tech-integrated
+education [26].
+
+AI-based tools for monitoring academic performance were tested in a school setting.
+They helped teachers quickly spot students who needed additional help. This allowed for
+more timely and personalized learning plans. As a result, students received the support they
+needed without delay. These systems represent the future of student-centered education [27].
+
+DEFINITION OF TERMS
+OPERATIONAL TERMS
+User Role - The different levels of system access such as student, teacher, administrator, and
+parent, each with specific functionalities.
+Attendance Monitoring - The method used to track student presence in class, possibly using
+QR codes or biometric scans.
+Student Profile - A personalized data record containing the student’s information, academic
+history, and performance tracking.
+System Dashboard - The main interface where users (admin, teacher, student) can view
+summaries of relevant data and access features.
+Real-time Feedback - Immediate responses provided by the system to students or teachers,
+such as performance metrics or system alerts.
+Performance Evaluation - A feature in the system for assessing student progress using
+grades, quizzes, or activity tracking.
+TECHNICAL TERMS
+Smart Education System - A technology-based learning platform that integrates devices,
+internet, and software to enhance teaching and learning experiences.
+Database - A structured collection of data stored digitally to manage information such as
+student records, attendance, or grades.
+Web-based Application - An online software tool accessed through a browser, used by
+students, teachers, and admins for various education-related tasks.
+
+Artificial Intelligence (AI) - Machine-based logic integrated into the system to provide
+intelligent features such as personalized learning suggestions.
+Learning Management System (LMS) - A platform that enables the administration,
+documentation, tracking, and delivery of educational courses or training programs.
+Performance Analytics - The process of collecting, analyzing, and interpreting academic
+data to evaluate students’ strengths, weaknesses, and overall learning progress.
+Early Intervention Alerts - Automated notifications triggered by the system when a student
+shows signs of academic decline or irregular behavior, allowing school staff to take timely
+corrective action.
+Student Monitoring System - An integrated platform designed to track, record, and analyze
+various student-related data including grades, attendance, behavior, and participation.
+Real-Time Data Processing - The system’s ability to process and respond to data inputs
+immediately as they are collected, enabling instant performance feedback and alert
+generation.
+Data Visualization - The graphical representation of data through charts, graphs, and
+dashboards to help users easily interpret student performance and trends.
+Access Control - A security mechanism that restricts system access to authorized users only,
+protecting sensitive student data from unauthorized use.
+
+CHAPTER 3
+METHODOLOGY
+In this chapter, the methodologies used throughout the study are described together
+with the diagram presentation. Here are the following sections that will be discussed in this
+chapter: Requirements Analysis, Requirement Documentation, Design of Software, System
+Product and/or Process, Development and Testing and Implementation Plan.
+
+REQUIREMENTS ANALYSIS
+In this section, the focus is on the current process and specific needs of the
+organization, specifically in monitoring student performance. By conducting interviews with
+key stakeholders and reviewing the existing systems and procedures, the proponents aim to
+gain a complete understanding of the school’s operations and objectives.
+The key individuals involved in this study include teachers and school administrators,
+as each plays an important role in the academic monitoring process. Teachers are responsible
+for recording student grades, managing class records, and submitting final grades. School
+administrators review and monitor these records to assess the academic standing of students.
+The main activity being monitored is student academic performance. This includes
+tracking grades in quizzes, written works, performance tasks, final exams, and attendance.
+The goal is to ensure that all student data is up to date, accurate, and accessible for both
+teaching and administrative purposes. The process also helps in identifying students who may
+be at risk or require academic support.
+The process takes place within St. Ignatius Academy, a private educational institution
+located at Navs Building, National Road, Brgy. Bayanan, City of Muntinlupa. Student
+
+performance records are updated by teachers on a regular basis, typically after each
+assessment such as quizzes, written works, or performance tasks. Grade summaries are
+usually compiled weekly or at the end of each grading period. Once the grades are finalized,
+the reports are submitted to the school administrators.
+
+The current process combines both manual and digital methods. Teachers use physical
+class record books to write down student performance and attendance. Some also use
+Microsoft Excel to compute and summarize grades. Once finalized, the results are manually
+submitted to the school administrator. Below is an overview of the current system.
+
+Figure 1. Functional Decomposition Diagram of the Existing Student Performance
+Monitoring Process at St. Ignatius Academy, Muntinlupa Branch
+The functional decomposition diagram of the existing student performance
+monitoring process at St. Ignatius Academy Branch illustrates the division of tasks between
+teachers and school administrators. The process begins with the teacher, who is responsible
+for managing class records, entering student grades, and generating grade reports. Once the
+
+grades are calculated, the reports are submitted to the school administrator. The administrator
+manages class information and monitors the overall performance of students. This includes
+reviewing academic data to ensure it is accurate and consistent across all classes. Based on
+the grade reports, the administrator identifies areas that need improvement, whether related to
+student performance or the academic subject itself.
+
+Figure 2. Diagram of the Existing Manual Student Performance Monitoring Process at St.
+Ignatius Academy, Muntinlupa Branch
+Figure 2 clearly illustrates the Diagram of the Existing Manual Process at St. Ignatius
+Academy, Muntinlupa Branch. Initially, teachers encode the submitted work of their students
+and store the results in a class record. Once the total scores for written work and performance
+tasks are calculated, the teachers generate the quarterly grades. These grades are then
+submitted to the class adviser, who is responsible for inputting the students' grades into SF 9
+
+(Progress Report Card) and SF 10 (Learner’s Permanent Record). After completing the input,
+both SF 9 and SF 10 are forwarded to the school administrator. The student grades are then
+reviewed, evaluated, and stored in the School Record. Students will be able to view their
+grades when the advisers distribute the report cards.
+
+Requirement Documentation
+Figure 3. Use Case Diagram of the Proposed System
+The use case diagram illustrates how different users interact with the Student
+Academic Performance Monitoring System. It includes three main users: the Admin, the
+Subject Teacher, and the Class Adviser.
+
+The Admin is responsible for managing and organizing important school data. They
+can add or update information about teachers and students, assign subjects to grade levels,
+create class sections, appoint advisers, and assign subject teachers to those sections. The
+admin can also access the dashboard to view the total number of students, teachers, subjects,
+and sections. Additionally, they can generate academic performance reports.
+
+The Subject Teacher uses the system to handle their assigned classes. They can add or
+edit student grades, input assessment results, analyze student performance, and send
+intervention alerts when needed. They can also view the sections assigned to them.
+
+The Class Adviser can monitor the performance of their advisory class. They can
+view student grades and check assessment results to better understand each student’s
+progress. The Logout/End Session use case is available to all authenticated users, providing a
+secure exit from the system.
+
+Figure 4. Functional Decomposition Diagram of the Proposed System
+In Figure 3, it illustrates the two main parts of the system: the School Admin Module and the
+Teacher Module.
+School Administrator’s Module
+This module handles the main functions of the system. The school administrator is
+responsible for managing and organizing important data such as teacher and student
+information. The admin can set up the school year, assign subjects per grade level, add
+student and teacher records, create class sections, appoint advisers, and assign subject
+teachers to specific sections. The dashboard allows the admin to view the total number of
+
+sections, students, teachers, and subjects. It also provides access to the academic performance
+report.
+
+Teacher’s Module
+The Teacher Module is designed for teachers to manage and monitor student
+performance. Subject teachers can add or edit grades, input assessment results, view their
+assigned sections, and track grade trends through visual tools. Class advisers can monitor the
+overall performance of their advisory class, including grades and assessment results. This
+helps them keep track of their students’ academic progress and provide support when needed.
+
+DESIGN OF SOFTWARE, SYSTEMS, PRODUCT AND/OR PROCESS
+Conceptual Frameworks
+
+Figure 5. Conceptual Framework Diagram of the Proposed Title
+Figure 4 illustrates the conceptual framework of the proposed system. It presents the
+different stages and processes involved in achieving the objectives of the study. The Input
+phase consists of knowledge, software, and hardware requirements. The knowledge
+requirements include web-based monitoring systems, the use of AI in educational analytics,
+tracking academic, behavioral, and social performance metrics, learning analytics
+dashboards, student performance evaluation methods, educational technologies (EdTech),
+early intervention strategies, and student data collection techniques. The hardware
+requirements include desktop computers, laptops, and internet connectivity through a router
+or modem. The software requirements consist of development tools and technologies such as
+HTML, CSS, JavaScript, Bootstrap, PHP or Python for the backend, MySQL for the
+database, AJAX, jQuery, code editors like Sublime Text or Visual Studio Code, and AI/ML
+frameworks such as Scikit-learn or TensorFlow. The Process follows the Agile methodology,
+which includes the phases of requirements gathering and planning, system design,
+development, testing, deployment, review, and final launch. The Output of this framework is
+a fully functional web-based smart student monitoring system that features AI-powered
+performance analytics and early intervention alerts. This system is designed to support and
+improve student monitoring and academic performance at St. Ignatius Academy.
+Additionally, an evaluation loop is incorporated into the framework to ensure continuous
+improvement. It involves collecting user feedback from the deployed system and applying
+necessary updates and adjustments. This helps maintain the system’s functionality,
+user-friendliness, and adaptability to changing needs. Overall, this conceptual framework
+
+provides a structured and effective guide for the successful development of the proposed
+information management system.
+
+System Architecture
+Figure 6. System Architecture of the Proposed Title
+Figure 5 illustrates the system structure of the Web-Based Smart Student Monitoring
+System with AI-Powered Performance Analytics and Early Intervention Alerts for St.
+Ignatius Academy. At the user level, both administrators and teachers use the system through
+their own web-based user interfaces on their computers. These interfaces are easy to use and
+are the main way to enter and view information. They connect to the system over the internet,
+which links the users' devices to the main system. The main system runs on a combined web
+server and application server. This server handles the user interfaces, runs the system's
+features, and most importantly, uses AI to analyze student data. It identifies patterns or signs
+of poor performance and sends early warning alerts when needed. All student records,
+performance data, attendance, and system settings are stored in the database. This database
+keeps all the information organized and available for both users and the AI system to use.
+The overall design makes sure that data flows smoothly from input to storage, analysis, and
+action. This makes the system a helpful tool for supporting students at St. Ignatius Academy.
+
+Development and Testing
+Development Procedure
+The researchers decided to use the Agile methodology to build the student
+performance monitoring system in phases. Agile allows for iterative planning,
+implementation, testing, and development, which aligns well with the dynamic and
+user-centered nature of educational app development.
+
+Figure 7. Agile Methodology
+Phase 1: Requirements and Planning
+In the initial phase, the researchers conducted interviews with key stakeholders,
+including teachers and school administrators, to gather the system requirements. These
+discussions focused on understanding the users’ needs and desired features for the system.
+The researchers then outlined the core functionalities based on the collected input and created
+a step-by-step plan for the development process. This phase ensured that the system would be
+aligned with the actual needs of its intended users.
+Phase 2: Design
+Once the requirements were established, the researchers began designing the system’s
+
+user interface and overall layout. The design aimed to be simple, intuitive, and user-friendly,
+especially for individuals who may not be highly familiar with technology. Wireframes and
+mockups were created to visualize the structure and flow of the system. This phase focused
+on ensuring that the design would support a smooth user experience.
+Phase 3: Development
+During the development phase, the system was built gradually, following the planned
+features from the previous phases. Key modules such as student information entry,
+AI-powered performance analysis, real-time alerts, and administrative dashboards were
+developed and implemented.
+Phase 4: Testing
+In this phase, each part of the system was tested to ensure it functioned correctly and met the
+expected requirements. The team performed functionality checks, fixed identified errors, and
+ensured that the system was easy to use. Feedback from sample users, including teachers, was
+also gathered to identify usability issues and areas for improvement. This phase helped ensure
+the system’s quality and reliability before deployment.
+Phase 5: Deployment
+After successful testing, the system was deployed to a live server environment where
+it became accessible to users. The researchers ensured that all core functions were stable and
+that users could begin using the system for real tasks. Basic user guidance and support were
+also provided to help them navigate the system effectively. This phase marked the official
+launch and readiness of the system for day-to-day use.
+
+Phase 6: Review
+The final phase involved reviewing the entire development process and evaluating the
+system’s performance based on user feedback. The researchers gathered comments and
+suggestions to determine if the system was meeting its objectives and to identify any areas
+that could be improved in future updates. This ongoing review supports the continuous
+enhancement of the system, ensuring it remains relevant and useful to its users.
+Testing Procedure
+Table 1 and 2 shows the testing procedures undertaken by the researchers.
+Table 1
+Alpha Testing Procedure
+
+The testing procedure is needed by the proponents to identify bugs, test functionality,
+and ensure all major features are working as expected. This early testing focuses on fixing
+
+Components/Module Tests to Be Conducted (Alpha Testing)
+User Login & Access
+Control
+Users are able to log in and log out properly.
+Incorrect login attempts are blocked with proper error
+messages.
+Password reset and recovery features work as expected.
+Users only access features based on their roles.
+Teacher Module
+Teachers can input and edit grades and attendance for their
+assigned students.
+Teachers can view only their assigned students’ records.
+Teachers can log behavior notes and student activities.
+Teacher dashboards display correct and updated
+information.
+School Administrator
+Module
+Admins can create, edit, and deactivate user accounts.
+Admins can set school year, subjects, and class settings.
+Admins have full access to all reports and dashboards.
+Only admins can access and change system configurations.
+technical issues, checking role-based access, and confirming that modules such as login,
+grading, and user management perform correctly in a controlled environment.
+Table 2
+Beta Testing Procedures
+
+In the Beta testing phase, the system is released to a selected group of actual end-users
+who use it in real-world conditions. Teachers and administrators interact with the platform,
+and their feedback is collected using a Likert scale. This feedback helps developers assess
+usability, identify overlooked problems, and refine system features based on real experiences.
+The Likert scale provides measurable insights that highlight which areas are working well
+and which need improvement before full deployment.
+
+Components/Module Tests to Be Conducted (Alpha Testing)
+Teacher Module
+Teachers are able to manage class records during
+regular use.
+The grading and attendance process is easy to
+complete.
+Teachers can view and track student progress
+clearly.
+Features are working as expected with no major
+errors.
+School Administrator Module
+Admins can manage settings and users in real
+usage.
+Admins can generate and review accurate reports.
+System settings updates are saved and applied
+properly.
+The interface is clear and functions are easy to use.
+Table 3 shows the evaluation tool used by the researchers in evaluating the proposed
+system.
+Table 3
+ISO/IEC 25010:201 1 Software Evaluation Tool for IT Experts
+
+The table shows the areas of evaluation under the ISO/IEC 25010:201 1 Software
+Evaluation Tool for I.T. Experts. It particularly evaluated the functionality, performance,
+usability, reliability, security, maintainability and portability of the proposed software.
+
+Indicator Description
+Functional Suitability Degree to which a product of system provides functions
+that meet stated and implied needs when used under
+specified conditions.
+Performance Efficiency Performance relative to the amount of resources used
+under stated conditions.
+Usability Degree to which a product or system can be used by
+specified users to achieve specified goals with
+effectiveness, efficiency and satisfaction in a specified
+context of use.
+Reliability Degree to which a system, product or component
+performs specified functions under specified conditions
+for a specified period of time.
+Security Degree to which a product or system protects
+information and data so that persons or other products or
+systems have the degree of data access appropriate to
+their types and levels of authorization.
+Maintainability Degree of effectiveness and efficiency with which a
+product or system can be modified by the intended
+maintainers.
+Portability Degree of effectiveness and efficiency with which a
+system, product or component can be transferred from
+one hardware, software or other operational or usage
+environment to another.
+Table 4 shows the evaluation tool used by the researchers in evaluating the proposed
+system.
+Table 4
+ISO/IEC 25010:201 1 Software Evaluation Tool for Actual Users
+
+The table shows the areas of evaluation under the ISO/IEC 25010:201 1 Software
+Evaluation Tool for Actual Users. It particularly evaluated the functionality, performance,
+usability, and reliability of the proposed software.
+
+Indicator Description
+Functional Suitability Degree to which a product of system provides
+functions that meet stated and implied needs when
+used under specified conditions.
+Performance Efficiency Performance relative to the amount of resources
+used under stated conditions.
+Usability Degree to which a product or system can be used by
+specified users to achieve specified goals with
+effectiveness, efficiency and satisfaction in a
+specified context of use.
+Reliability Degree to which a system, product or component
+performs specified functions under specified
+conditions for a specified period of time.
+Table 5 shows the matrix for the Likert scale used by the researchers in evaluating the
+software.
+Table 5
+Matrix for the Likert Scale used in the research instrument
+
+The Likert scale is a valuable tool that measures the satisfaction level of the
+beneficiaries with the proposed system, including user attitudes and perceptions. It typically
+ranges from "Strongly Disagree" (1.0–1.5) to "Strongly Agree" (4.51–5.0). During the alpha
+and beta testing phases, the scale helps identify how strongly users agree or disagree with
+specific features or functions of the system. This allows developers to pinpoint strengths and
+weaknesses by gathering detailed feedback from internal testers in the alpha phase and
+real-world users in the beta phase. As a result, the Likert scale supports targeted
+improvements and helps ensure that the final product meets user expectations and needs.
+
+Scale Range of Mean Value Interpretation
+5 4.51 - 5.00 Excellent
+4 3.51 - 4.50 Very Good
+3 2.51 - 3.50 Good
+2 1.51 - 2.50 Fair
+1 1.00 - 1.51 Poor
+Implementation Plan
+An implementation plan is a process of defining the strategy for achieving specific
+goals or making decisions. This section represents the plan, activities, the things involved,
+and the time required to complete the implementation. This plan will serve as a guide to
+the administrator who will be assigned to maintain the system entitled “A Web-Based Smart
+Student Monitoring With AI-Powered Performance Analytics and Early Intervention Alerts
+for St. Ignatius Academy.” The implementation overview includes deployment procedures,
+user training, and resource allocation necessary to support the full adoption of the system.
+
+Table 6
+Implementation Plan Table
+Strategy Activities Persons Involved Duration
+Approval from
+the Institution
+Send formal letters for the
+approval of the principal
+Researchers, Principal,
+Administrator
+1–2 days
+System
+Installation
+Install the system and check
+the facility (hardware and
+software readiness)
+Researchers, School
+Staff, Administrator
+2–3 days
+Information
+Distribution
+Distribute user manuals Researchers,
+Administrator, Adviser,
+Subject Teachers
+1 day
+User Training Conduct hands-on training,
+system demonstration, and
+lectures
+Researchers,
+Administrator, Adviser,
+Subject Teachers
+3 days
+REFERENCES
+[1] S. J. Aburizaizah, “Data-Informed Educational Decision Making to Improve Teaching and
+Learning Outcomes of EFL,” 2021. [Online]. Available: https://eric.ed.gov/?id=EJ1312077
+
+[2] P. Kannan and D. Zapata-Rivera, “Facilitating the Use of Data From Multiple Sources for
+Formative Learning in the Context of Digital Assessments: Informing the Design and
+Development of Learning Analytic Dashboards,” 2022. [Online]. Available:
+https://doi.org/10.3389/feduc.2022.913594
+
+[3] E. Alyahyan and D. Düştegör, “Predicting academic success in higher education:
+Literature review and best practices,” 2020. [Online]. Available:
+https://link.springer.com/article/10.1186/s41239-020-00177-6
+
+[4] M. Bell, “Define Academic Performance,” 2018. [Online]. Available:
+https://www.theclassroom.com/define-academic-performance-4740750.html
+
+[5] J. Beulah, “Progress Monitoring Through the Lens of Distance Learning,” 2020. [Online].
+Available: https://red.mustate.edu/
+
+[6] D. Kalambe, A. Labade, S. Khedekar, and K. Mahajan, “Student Performance Analysis
+System using Data Mining,” 2018. [Online]. Available:
+http://www.ijert.org/student-performance-analysis-system-using-data-mining
+
+[7] Inettutor, “Student Academic Performance Tracking and Monitoring System,” 2022.
+[Online]. Available:
+
+https://www.inettutor.com/programming-tutorial/bootstrap/student-academic-performance-tra
+cking-and-monitoring-system
+
+[8] Gordian Innovation, “Student Performance System (SPS),” 2022. [Online]. Available:
+https://www.studentperformancesystem.com
+
+[9] AZO AI, “Using Artificial Intelligence to Track Student Performance,” 2024. [Online].
+Available:
+https://www.azoai.com/article/Using-Artificial-Intelligence-to-Track-Student-Performance.as
+px
+
+[10] R. Lee, “Smart educational monitoring systems for real-time student performance
+tracking,” ResearchGate, 2023. [Online]. Available:
+https://www.researchgate.net/publication/361729300
+
+[11] J. Brown, “Advanced AI systems in academic performance analysis,” Semantic Scholar,
+
+[Online]. Available:
+https://pdfs.semanticscholar.org/0695/0dccd68ac9bcf55ebaf75c8a52a44bbe5118.pdf
+[12] D. Ghosh, “Using AI for Student Success,” in Artificial Intelligence Solutions for
+Cyber-Physical Systems , P. K. Dutta, P. Raj, and P. Selvan, Eds. Boca Raton, FL: CRC Press,
+2024, ch. 13, doi: 10.1201/9781032694375-13.
+
+[13] “An Early Warning System to Detect At-Risk Students in Online Higher Education,”
+Appl. Sci., vol. 10, no. 13, 2020.
+
+[14] L. Chen, “AI-powered student monitoring: Psychological and educational impacts,”
+BMC Psychol., vol. 12, no. 2, 2024. [Online]. Available:
+https://link.springer.com/article/10.1186/s40359-024-01979-0
+
+[15] J. B. P. Tubongbanua, K. M. V. Dahilan, K. G. A. Sagun, and J. L. Ruiz, “Web-Based
+Information and Monitoring System of Cagayan de Oro City Academy for International
+Education,” 2017. [Online]. Available: https://ejournals.ph/article.php?id=13825
+
+[16] G. Somani, “Student Tracking System: How It Helps In Improving Student’s
+Performance?,” 2021. [Online]. Available:
+https://www.iitms.co.in/blog/student-tracking-system-improving-performance.html
+
+[17] P. Caldarella, R. A. A. Larsen, L. Williams, J. H. Wehby, H. Wills, and D. Kamps,
+“Monitoring Academic and Social Skills in Elementary School: A Psychometric Evaluation
+of the Classroom Performance Survey,” 2017. [Online]. Available:
+https://eric.ed.gov/?id=EJ1 139516
+
+[18] L. Gabaig, R. Malcolm, G. P. Pangelinan, M. L. Pasing, and E. Halover, “Web-based
+Attendance Monitoring System for University of Baguio Senior High School,” 2019.
+[Online]. Available: https://www.academia.edu/40146565
+
+[19] O. Bulut et al., “The Rise of Artificial Intelligence in Educational Measurement:
+Opportunities and Ethical Challenges,” arXiv preprint arXiv:2406.18900, 2024. [Online].
+Available: https://arxiv.org/pdf/2406.18900
+
+[20] I. Khan, A. R. Ahmad, N. Jabeur et al., “An Artificial Intelligence Approach to Monitor
+Student Performance and Devise Preventive Measures,” Smart Learn. Environ., vol. 8, p. 17,
+
+[Online]. Available: https://doi.org/10.1186/s40561-021-00161-y
+[21] G. Nagarajan, R. I. Minu, T. R. Saravanan, S. Borah, and D. Mishra, “Artificial
+Intelligent Approach to Predict the Student Behavior and Performance,” in Intelligent and
+Cloud Computing, Springer, 2022. [Online]. Available:
+https://doi.org/10.1007/978-981-16-9873-6_24
+
+[22] A. Singh and S. Srivastava, “Predictive analytics in education using AI and machine
+learning,” in 2024 Int. Conf. Comput., Commun., and Intell. Syst. (ICCCIS), 2024. [Online].
+Available: https://ieeexplore.ieee.org/abstract/document/10617155
+
+[23] A. R. Ahmad and N. Ali, “Predicting students’ academic performance using data mining
+techniques,” Appl. Sci., vol. 10, no. 13, p. 4427, 2020. [Online]. Available:
+https://www.mdpi.com/2076-3417/10/13/4427
+
+[24] D. K. Korir and M. Wafula, “Impact of student tracking systems on academic
+performance,” Int. J. Educ. Pract., vol. 8, no. 3, pp. 456–465, 2020. [Online]. Available:
+https://files.eric.ed.gov/fulltext/EJ1267912.pdf
+
+[25] N. Reddy, “AI-based attendance monitoring system,” ResearchGate, 2022. [Online].
+Available: https://www.researchgate.net/publication/338331249
+
+[26] H. Herlianto, “IoT-based student monitoring system for smart school applications,”
+ResearchGate, 2021. [Online]. Available:
+https://www.researchgate.net/publication/344896971
+
+[27] V. Mehta and K. Shah, “AI-based academic performance tracking system,” Int. Res. J.
+Mod. Eng. Technol. Sci. (IRJMETS), vol. 5, no. 4, pp. 450–455, 2023. [Online]. Available:
+https://www.irjmets.com/uploadedfiles/paper/issue_4_april_2023/36419/final/fin_irjmets168
+2244453.pdf
