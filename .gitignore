@@ -2,20 +2,20 @@
 .history/
 
 # Dependencies
-vendor/
-node_modules/
+# vendor/
+# node_modules/
 
 # Build outputs
-public/assets/*.min.css
-public/assets/*.min.js
-public/assets/*.min.css.map
-public/assets/*.min.js.map
+# public/assets/*.min.css
+# public/assets/*.min.js
+# public/assets/*.min.css.map
+# public/assets/*.min.js.map
 
 # Environment and config
-.env
-.env.local
-config/local.php
-config/config.php
+# .env
+# .env.local
+# config/local.php
+# config/config.php
 
 # Logs
 logs/*.log
@@ -40,36 +40,36 @@ ehthumbs.db
 Desktop.ini
 
 # Temporary files
-*.tmp
-*.temp
-*.cache
-.cache/
+# *.tmp
+# *.temp
+# *.cache
+# .cache/
 
 # Database
-*.sql.bak
-*.sql.backup
+# *.sql.bak
+# *.sql.backup
 
 # PHPUnit
-phpunit.xml.bak
-.phpunit.result.cache
+# phpunit.xml.bak
+# .phpunit.result.cache
 
 # Composer
-composer.phar
-composer.lock.bak
+# composer.phar
+# composer.lock.bak
 
 # Package manager
-package-lock.json.bak
-yarn.lock.bak
+# package-lock.json.bak
+# yarn.lock.bak
 
 # Build artifacts
-dist/
-build/
-*.min.js
-*.min.css
+# dist/
+# build/
+# *.min.js
+# *.min.css
 
 # Coverage reports
-coverage/
-.nyc_output/
+# coverage/
+# .nyc_output/
 
 # PDFs and documents (if you don't want to track them)
 # *.pdf
