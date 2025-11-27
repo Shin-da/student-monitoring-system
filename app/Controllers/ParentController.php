@@ -88,6 +88,44 @@ class ParentController extends Controller
                 $childInfo = $studentStmt->fetch(\PDO::FETCH_ASSOC) ?: null;
 
                 if ($childInfo) {
+                    // Get AI performance analysis
+                    $aiAnalysis = null;
+                    $childAlerts = [];
+                    try {
+                        $analyzer = new \Services\PerformanceAnalyzer($pdo);
+                        $academicYear = (new \Models\GradeModel())->getCurrentAcademicYear();
+                        $quarter = $this->getCurrentQuarter();
+                        
+                        $aiAnalysis = $analyzer->analyzeStudent(
+                            (int)$childInfo['id'],
+                            (int)($childInfo['section_id'] ?? 0),
+                            $quarter,
+                            $academicYear
+                        );
+                        
+                        // Get alerts for this student
+                        $alertStmt = $pdo->prepare("
+                            SELECT 
+                                pa.id,
+                                pa.alert_type,
+                                pa.title,
+                                pa.description,
+                                pa.severity,
+                                pa.status,
+                                pa.created_at,
+                                sub.name as subject_name
+                            FROM performance_alerts pa
+                            LEFT JOIN subjects sub ON pa.subject_id = sub.id
+                            WHERE pa.student_id = ? AND pa.status = 'active'
+                            ORDER BY pa.created_at DESC
+                            LIMIT 5
+                        ");
+                        $alertStmt->execute([(int)$childInfo['id']]);
+                        $childAlerts = $alertStmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+                    } catch (\Exception $e) {
+                        error_log("Parent dashboard AI analysis error: " . $e->getMessage());
+                    }
+                    
                     try {
                         $activityStmt = $pdo->prepare("
                             SELECT description, created_at
@@ -127,6 +165,8 @@ class ParentController extends Controller
                 'parent_relationship' => $parentData['parent_relationship'] ?? null,
                 'recent_activities' => $recentActivities,
                 'upcoming_events' => $upcomingEvents,
+                'ai_analysis' => $aiAnalysis ?? null,
+                'alerts' => $childAlerts ?? [],
             ], 'layouts/dashboard');
         } catch (\Exception $e) {
             \Helpers\ErrorHandler::internalServerError('Failed to load parent dashboard: ' . $e->getMessage());
@@ -647,6 +687,29 @@ class ParentController extends Controller
 
         } catch (\Exception $e) {
             \Helpers\ErrorHandler::internalServerError('Failed to load schedule: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Get current quarter based on month
+     */
+    private function getCurrentQuarter(): int
+    {
+        $month = (int)date('n');
+        
+        // Quarter 1: June-August (months 6-8)
+        // Quarter 2: September-November (months 9-11)
+        // Quarter 3: December-February (months 12, 1, 2)
+        // Quarter 4: March-May (months 3-5)
+        
+        if ($month >= 6 && $month <= 8) {
+            return 1;
+        } elseif ($month >= 9 && $month <= 11) {
+            return 2;
+        } elseif ($month === 12 || $month <= 2) {
+            return 3;
+        } else {
+            return 4;
         }
     }
 }
