@@ -45,12 +45,20 @@
     const formData = new FormData(form);
     const obj = {};
     for (const [key, value] of formData.entries()) {
+      // Skip empty values for optional fields, but keep required ones
+      if (value === '' && !['name', 'email', 'password', 'role'].includes(key)) {
+        continue;
+      }
       if (obj[key] !== undefined) {
         if (!Array.isArray(obj[key])) obj[key] = [obj[key]];
         obj[key].push(value);
       } else {
         obj[key] = value;
       }
+    }
+    // Ensure required fields are present
+    if (!obj.name || !obj.email || !obj.password || !obj.role) {
+      console.warn('Missing required fields in form data:', obj);
     }
     return obj;
   }
@@ -66,8 +74,16 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     // 1) Admin: Create User -> /api/create_user.php (POST JSON)
+    // NOTE: Only handle if adminCreateUser.js is NOT loaded (to avoid conflicts)
     const createUserForm = document.getElementById('createUserForm');
-    if (createUserForm) {
+    if (createUserForm && typeof window.adminCreateUserHandled === 'undefined') {
+      // Check if adminCreateUser.js is handling this form
+      const hasAdminCreateUserScript = Array.from(document.querySelectorAll('script')).some(script => {
+        return script.src && script.src.includes('adminCreateUser.js');
+      });
+      
+      // Only handle if adminCreateUser.js is not present
+      if (!hasAdminCreateUserScript) {
       createUserForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const submitBtn = document.getElementById('submitBtn');
@@ -78,6 +94,8 @@
           // Remove csrf_token from API payload if present
           if ('csrf_token' in payload) delete payload.csrf_token;
 
+          console.log('Submitting user creation via backendIntegration:', payload);
+
           const res = await apiFetch(`${BASE}/api/create_user.php`, {
             method: 'POST',
             body: JSON.stringify(payload),
@@ -85,6 +103,22 @@
 
           if (res && res.success) {
             notify(res.message || 'User created successfully!', 'success');
+            
+            // Dispatch teacherCreated event if teacher/adviser was created
+            if (payload.role === 'teacher' || payload.role === 'adviser') {
+              const event = new CustomEvent('teacherCreated', {
+                detail: {
+                  userId: res.user_id || null,
+                  role: payload.role,
+                  name: payload.name,
+                  email: payload.email
+                },
+                bubbles: true,
+                cancelable: true
+              });
+              document.dispatchEvent(event);
+            }
+            
             // Optional redirect back to users list if provided by API
             if (res.redirect) {
               window.location.href = res.redirect;
@@ -92,14 +126,18 @@
               createUserForm.reset();
             }
           } else {
-            notify((res && (res.message || res.error)) || 'Failed to create user.', 'error');
+            const errorMsg = (res && (res.message || res.error)) || 'Failed to create user.';
+            console.error('User creation failed:', res);
+            notify(errorMsg, 'error');
           }
         } catch (err) {
-          notify(err.message || 'Error creating user.', 'error');
+          console.error('User creation error:', err);
+          notify(err.message || 'Error creating user. Check console for details.', 'error');
         } finally {
           disableButton(submitBtn, false);
         }
       });
+      }
     }
 
     // 2) Teacher: Add student by LRN -> GET get_student_by_lrn then POST add_student_to_section

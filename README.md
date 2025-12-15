@@ -160,7 +160,6 @@ composer test
 - `resources/views/teacher/grades.php` - Teacher grade management
 - `resources/views/teacher/classes.php` - Teacher class management
 - `resources/views/teacher/assignments.php` - Teacher assignment management
-- `resources/views/teacher/student-progress.php` - Student progress tracking
 - `resources/views/teacher/attendance.php` - Teacher attendance management
 - `resources/views/teacher/communication.php` - Teacher communication center
 - `resources/views/teacher/materials.php` - Teacher resources and materials

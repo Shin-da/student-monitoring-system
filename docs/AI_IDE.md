@@ -35,8 +35,8 @@ Quick reference for AI assistants working on this project.
 - **Layouts**: `layouts/app.php` (main), `layouts/dashboard.php` (dashboard)
 - **Auth**: `auth/login.php`, `auth/register.php`
 - **Admin**: `admin/dashboard.php`, `admin/settings.php`, `admin/reports.php`, `admin/logs.php`, `admin/users.php`, `admin/create-student.php`, `admin/create-parent.php`
-- **Teacher**: `teacher/dashboard.php`, `teacher/grades.php`, `teacher/classes.php`, `teacher/assignments.php`, `teacher/student-progress.php`, `teacher/attendance.php`, `teacher/communication.php`, `teacher/materials.php`, `teacher/alerts.php`
-- **Student**: `student/dashboard.php`, `student/grades.php`, `student/assignments.php`, `student/profile.php`, `student/attendance.php`, `student/alerts.php`, `student/schedule.php`, `student/resources.php`
+- **Teacher**: `teacher/dashboard.php`, `teacher/grades.php`, `teacher/classes.php`, `teacher/assignments.php`, `teacher/attendance.php`, `teacher/communication.php`, `teacher/materials.php`, `teacher/alerts.php`
+- **Student**: `student/dashboard.php`, `student/grades.php`, `student/assignments.php`, `student/profile.php`, `student/attendance.php`, `student/alerts.php`, `student/schedule.php`
 - **Parent**: `parent/dashboard.php`
 - **Adviser**: `adviser/` (dashboard)
 - **Grades**: `grade/index.php` (management), `grade/student-view.php` (student/parent)
@@ -143,7 +143,6 @@ $router->get('/teacher/grades', [TeacherController::class, 'grades']);
 $router->get('/teacher/classes', [TeacherController::class, 'classes']);
 $router->get('/teacher/assignments', [TeacherController::class, 'assignments']);
 $router->get('/teacher/attendance', [TeacherController::class, 'attendance']);
-$router->get('/teacher/student-progress', [TeacherController::class, 'studentProgress']);
 $router->get('/teacher/communication', [TeacherController::class, 'communication']);
 $router->get('/teacher/materials', [TeacherController::class, 'materials']);
 
@@ -154,7 +153,6 @@ $router->get('/student/profile', [StudentController::class, 'profile']);
 $router->get('/student/attendance', [StudentController::class, 'attendance']);
 $router->get('/student/alerts', [StudentController::class, 'alerts']);
 $router->get('/student/schedule', [StudentController::class, 'schedule']);
-$router->get('/student/resources', [StudentController::class, 'resources']);
 
 // Admin Routes
 $router->get('/admin/settings', [AdminController::class, 'settings']);
@@ -184,7 +182,7 @@ All are powered by `public/assets/app.js` and `public/assets/app.css`.
 ## 🚨 Current Status
 - **Admin Interface**: Complete with settings, reports, logs, user management, and analytics
 - **Teacher Interface**: Complete with grade management, class management, assignments, attendance, communication, and materials
-- **Student Interface**: Complete with grades, assignments, profile, attendance, alerts, schedule, and resources
+- **Student Interface**: Complete with grades, assignments, profile, attendance, alerts, and schedule
 - **Parent Interface**: Enhanced dashboard with child selection and academic tracking
 - **Adviser Interface**: Complete with dashboard, student management, performance tracking, and communication
 - **Sidebar System**: Complete with mobile responsiveness, state persistence, and accessibility

@@ -136,7 +136,6 @@ Dark/Light theme support and responsive layout are included by default.
 - `resources/views/teacher/grades.php` - Teacher grade management page
 - `resources/views/teacher/classes.php` - Teacher class management page
 - `resources/views/teacher/assignments.php` - Teacher assignment management page
-- `resources/views/teacher/student-progress.php` - Teacher student progress tracking page
 - `resources/views/teacher/attendance.php` - Teacher attendance management page
 - `resources/views/teacher/communication.php` - Teacher communication and messaging page
 - `resources/views/teacher/materials.php` - Teacher resources and materials page

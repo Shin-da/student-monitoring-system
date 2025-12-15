@@ -80,16 +80,34 @@ class GradeController extends Controller
 
         try {
             $pdfGenerator = new PdfGenerator();
-            $pdfContent = $pdfGenerator->generateSF9($studentId, $academicYear);
+            
+            // If TCPDF is not available, redirect to view page for printing
+            if (!$pdfGenerator->isUsingTcpdf()) {
+                $redirectUrl = \Helpers\Url::to('/grades/sf9/view?student_id=' . $studentId . 
+                    ($academicYear ? '&academic_year=' . urlencode($academicYear) : ''));
+                header('Location: ' . $redirectUrl);
+                exit;
+            }
+            
+            $content = $pdfGenerator->generateSF9($studentId, $academicYear);
+
+            // Verify content is actually PDF (starts with PDF header)
+            if (substr($content, 0, 4) !== '%PDF') {
+                // Content is not a valid PDF, redirect to view
+                $redirectUrl = \Helpers\Url::to('/grades/sf9/view?student_id=' . $studentId . 
+                    ($academicYear ? '&academic_year=' . urlencode($academicYear) : ''));
+                header('Location: ' . $redirectUrl);
+                exit;
+            }
 
             // Set headers for PDF download
             header('Content-Type: application/pdf');
             header('Content-Disposition: attachment; filename="SF9_' . $studentId . '_' . date('Y-m-d') . '.pdf"');
-            header('Content-Length: ' . strlen($pdfContent));
+            header('Content-Length: ' . strlen($content));
             header('Cache-Control: private, max-age=0, must-revalidate');
             header('Pragma: public');
 
-            echo $pdfContent;
+            echo $content;
             exit;
 
         } catch (\Exception $e) {
@@ -173,23 +191,55 @@ class GradeController extends Controller
 
         try {
             $pdfGenerator = new PdfGenerator();
-            $pdfContent = $pdfGenerator->generateSF10($studentId, $quarter, $academicYear);
-
+            
             // Check if HTML fallback (for printing)
+            // If TCPDF is available, reject HTML format request and redirect to view page
+            // (generateSF10 returns PDF when TCPDF is available, not HTML)
             if (isset($_GET['format']) && $_GET['format'] === 'html') {
+                if ($pdfGenerator->isUsingTcpdf()) {
+                    // TCPDF is available, redirect to view page instead of returning PDF with HTML headers
+                    $redirectUrl = \Helpers\Url::to('/grades/sf10/view?student_id=' . $studentId . 
+                        '&quarter=' . $quarter . 
+                        ($academicYear ? '&academic_year=' . urlencode($academicYear) : ''));
+                    header('Location: ' . $redirectUrl);
+                    exit;
+                }
+                // TCPDF not available, generate HTML fallback
+                $content = $pdfGenerator->generateSF10($studentId, $quarter, $academicYear);
                 header('Content-Type: text/html; charset=utf-8');
-                echo $pdfContent;
+                echo $content;
+                exit;
+            }
+
+            // If TCPDF is not available, redirect to view page for printing
+            if (!$pdfGenerator->isUsingTcpdf()) {
+                $redirectUrl = \Helpers\Url::to('/grades/sf10/view?student_id=' . $studentId . 
+                    '&quarter=' . $quarter . 
+                    ($academicYear ? '&academic_year=' . urlencode($academicYear) : ''));
+                header('Location: ' . $redirectUrl);
+                exit;
+            }
+            
+            $content = $pdfGenerator->generateSF10($studentId, $quarter, $academicYear);
+
+            // Verify content is actually PDF (starts with PDF header)
+            if (substr($content, 0, 4) !== '%PDF') {
+                // Content is not a valid PDF, redirect to view
+                $redirectUrl = \Helpers\Url::to('/grades/sf10/view?student_id=' . $studentId . 
+                    '&quarter=' . $quarter . 
+                    ($academicYear ? '&academic_year=' . urlencode($academicYear) : ''));
+                header('Location: ' . $redirectUrl);
                 exit;
             }
 
             // Set headers for PDF download
             header('Content-Type: application/pdf');
             header('Content-Disposition: attachment; filename="SF10_' . $studentId . '_Q' . $quarter . '_' . date('Y-m-d') . '.pdf"');
-            header('Content-Length: ' . strlen($pdfContent));
+            header('Content-Length: ' . strlen($content));
             header('Cache-Control: private, max-age=0, must-revalidate');
             header('Pragma: public');
 
-            echo $pdfContent;
+            echo $content;
             exit;
 
         } catch (\Exception $e) {

@@ -1,4 +1,21 @@
 <?php
+// Minimal placeholder endpoint to avoid 404s.
+// Returns an empty slots list for the requested section_id.
+
+header('Content-Type: application/json');
+
+$sectionId = (int)($_GET['section_id'] ?? 0);
+if (!$sectionId) {
+    echo json_encode(['success' => false, 'error' => 'section_id is required']);
+    exit;
+}
+
+echo json_encode([
+    'success' => true,
+    'section_id' => $sectionId,
+    'slots' => []
+]);
+<?php
 declare(strict_types=1);
 
 use Models\SectionModel;

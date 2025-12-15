@@ -22,6 +22,8 @@ $success = $_GET['success'] ?? null;
       Section updated successfully!
     <?php elseif ($success === 'student_assigned'): ?>
       Student assigned to section successfully!
+    <?php elseif ($success === 'section_deleted'): ?>
+      Section deleted successfully!
     <?php endif; ?>
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
   </div>
@@ -288,26 +290,38 @@ $success = $_GET['success'] ?? null;
               </td>
               <td class="text-end">
                 <div class="btn-group" role="group">
-                  <button type="button" class="btn btn-sm btn-outline-primary" 
-                          onclick="viewSectionDetails(<?= $section['id'] ?>)"
+                  <button type="button" class="btn btn-sm btn-outline-primary action-view-details" 
+                          data-section-id="<?= $section['id'] ?>"
                           title="View Details">
                     <svg width="14" height="14" fill="currentColor">
                       <use href="#icon-eye"></use>
                     </svg>
                   </button>
-                  <button type="button" class="btn btn-sm btn-outline-info" 
-                          onclick="editSectionCapacity(<?= $section['id'] ?>, <?= $section['max_students'] ?>, <?= $enrolled ?>)"
+                  <button type="button" class="btn btn-sm btn-outline-info action-edit-capacity" 
+                          data-section-id="<?= $section['id'] ?>"
+                          data-max-students="<?= $section['max_students'] ?>"
+                          data-enrolled="<?= $enrolled ?>"
                           title="Edit Capacity">
                     <svg width="14" height="14" fill="currentColor">
                       <use href="#icon-edit"></use>
                     </svg>
                   </button>
-                  <button type="button" class="btn btn-sm btn-outline-success" 
-                          onclick="assignStudentToSection(<?= $section['id'] ?>, '<?= htmlspecialchars($section['name']) ?>')"
+                  <button type="button" class="btn btn-sm btn-outline-success action-assign-student" 
+                          data-section-id="<?= $section['id'] ?>"
+                          data-section-name="<?= htmlspecialchars($section['name'], ENT_QUOTES, 'UTF-8') ?>"
                           title="Assign Student"
                           <?= $section['status'] === 'full' ? 'disabled' : '' ?>>
                     <svg width="14" height="14" fill="currentColor">
                       <use href="#icon-user-plus"></use>
+                    </svg>
+                  </button>
+                  <button type="button" class="btn btn-sm btn-outline-danger action-delete-section" 
+                          data-section-id="<?= $section['id'] ?>"
+                          data-section-name="<?= htmlspecialchars($section['name'], ENT_QUOTES, 'UTF-8') ?>"
+                          data-enrolled="<?= $enrolled ?>"
+                          title="Delete Section">
+                    <svg width="14" height="14" fill="currentColor">
+                      <use href="#icon-delete"></use>
                     </svg>
                   </button>
                 </div>
@@ -471,8 +485,7 @@ $success = $_GET['success'] ?? null;
                 </svg>
               </span>
               <input type="text" class="form-control" id="studentSearch" 
-                     placeholder="Search by name, LRN, or email..." 
-                     onkeyup="searchUnassignedStudents()">
+                     placeholder="Search by name, LRN, or email...">
             </div>
           </div>
 
@@ -527,16 +540,300 @@ $success = $_GET['success'] ?? null;
   </div>
 </div>
 
-<script src="<?= \Helpers\Url::to('/assets/admin-sections.js') ?>"></script>
+<?php
+// Get the correct path for the JavaScript file
+$jsPath = \Helpers\Url::to('/assets/admin-sections.js');
+?>
+<!-- Load script synchronously - most reliable method -->
+<script src="<?= $jsPath ?>"></script>
 <script>
-// Auto-refresh section data every 30 seconds
-setInterval(() => {
-  refreshSectionData();
-}, 30000);
-
-// Filter functionality
-document.getElementById('searchInput').addEventListener('keyup', filterSections);
-document.getElementById('gradeFilter').addEventListener('change', filterSections);
-document.getElementById('statusFilter').addEventListener('change', filterSections);
+// Ensure functions are available and initialize
+(function() {
+    'use strict';
+    
+    // Verify critical functions are loaded
+    function verifyFunctions() {
+        const required = ['viewSectionDetails', 'editSectionCapacity', 'assignStudentToSection'];
+        const missing = required.filter(fn => typeof window[fn] !== 'function');
+        
+        if (missing.length > 0) {
+            console.error('Missing functions:', missing);
+            return false;
+        }
+        return true;
+    }
+    
+    // Wait for functions to be available (with timeout)
+    function waitForFunctions(callback, maxAttempts = 50) {
+        let attempts = 0;
+        
+        function check() {
+            attempts++;
+            if (verifyFunctions()) {
+                console.log('All required functions loaded successfully');
+                callback();
+            } else if (attempts < maxAttempts) {
+                setTimeout(check, 100);
+            } else {
+                console.error('Functions not available after', maxAttempts, 'attempts');
+                console.error('viewSectionDetails:', typeof viewSectionDetails);
+                console.error('editSectionCapacity:', typeof editSectionCapacity);
+                console.error('assignStudentToSection:', typeof assignStudentToSection);
+                
+                // Try to reload script as last resort
+                const script = document.createElement('script');
+                script.src = <?= json_encode($jsPath) ?> + '?v=' + Date.now();
+                script.onload = function() {
+                    setTimeout(function() {
+                        if (verifyFunctions()) {
+                            callback();
+                        } else {
+                            console.error('Functions still not available after reload');
+                        }
+                    }, 100);
+                };
+                document.head.appendChild(script);
+            }
+        }
+        
+        // Start checking immediately
+        check();
+    }
+    
+    // Initialize page functionality
+    function initSectionsPage() {
+        // Auto-refresh functionality
+        if (typeof refreshSectionData === 'function') {
+            setInterval(function() {
+                refreshSectionData();
+            }, 30000);
+        }
+        
+        // Filter functionality
+        const searchInput = document.getElementById('searchInput');
+        const gradeFilter = document.getElementById('gradeFilter');
+        const statusFilter = document.getElementById('statusFilter');
+        
+        if (searchInput && typeof filterSections === 'function') {
+            searchInput.addEventListener('keyup', filterSections);
+        }
+        if (gradeFilter && typeof filterSections === 'function') {
+            gradeFilter.addEventListener('change', filterSections);
+        }
+        if (statusFilter && typeof filterSections === 'function') {
+            statusFilter.addEventListener('change', filterSections);
+        }
+        
+        // Student search input
+        function initSearchInput() {
+            const studentSearchInput = document.getElementById('studentSearch');
+            if (studentSearchInput) {
+                studentSearchInput.addEventListener('keyup', function() {
+                    if (typeof searchUnassignedStudents === 'function') {
+                        searchUnassignedStudents();
+                    } else if (typeof loadUnassignedStudents === 'function') {
+                        loadUnassignedStudents(this.value);
+                    }
+                });
+            }
+        }
+        
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initSearchInput);
+        } else {
+            initSearchInput();
+        }
+        
+        console.log('Sections management initialized successfully');
+    }
+    
+    // Event delegation for action buttons
+    function handleActionClick(e) {
+        // View Details button
+        if (e.target.closest('.action-view-details')) {
+            e.preventDefault();
+            const btn = e.target.closest('.action-view-details');
+            const sectionId = parseInt(btn.getAttribute('data-section-id'));
+            
+            if (typeof viewSectionDetails === 'function') {
+                viewSectionDetails(sectionId);
+            } else {
+                console.error('viewSectionDetails not available');
+                alert('Error: View function not loaded. Please refresh the page.');
+            }
+            return;
+        }
+        
+        // Edit Capacity button
+        if (e.target.closest('.action-edit-capacity')) {
+            e.preventDefault();
+            const btn = e.target.closest('.action-edit-capacity');
+            const sectionId = parseInt(btn.getAttribute('data-section-id'));
+            const currentMax = parseInt(btn.getAttribute('data-max-students'));
+            const enrolled = parseInt(btn.getAttribute('data-enrolled'));
+            
+            if (typeof editSectionCapacity === 'function') {
+                editSectionCapacity(sectionId, currentMax, enrolled);
+            } else {
+                console.error('editSectionCapacity not available');
+                alert('Error: Edit function not loaded. Please refresh the page.');
+            }
+            return;
+        }
+        
+        // Assign Student button
+        if (e.target.closest('.action-assign-student')) {
+            e.preventDefault();
+            const btn = e.target.closest('.action-assign-student');
+            if (btn.disabled) return;
+            const sectionId = parseInt(btn.getAttribute('data-section-id'));
+            const sectionName = btn.getAttribute('data-section-name');
+            
+            if (typeof assignStudentToSection === 'function') {
+                assignStudentToSection(sectionId, sectionName);
+            } else {
+                console.error('assignStudentToSection not available');
+                alert('Error: Assign function not loaded. Please refresh the page.');
+            }
+            return;
+        }
+        
+        // Delete Section button
+        if (e.target.closest('.action-delete-section')) {
+            e.preventDefault();
+            const btn = e.target.closest('.action-delete-section');
+            const sectionId = parseInt(btn.getAttribute('data-section-id'));
+            const sectionName = btn.getAttribute('data-section-name');
+            const enrolled = parseInt(btn.getAttribute('data-enrolled')) || 0;
+            
+            // Confirmation prompt with details
+            let confirmMessage = `Are you sure you want to delete section "${sectionName}"?\n\n`;
+            if (enrolled > 0) {
+                confirmMessage += `⚠️ WARNING: This section has ${enrolled} enrolled student(s). They will be unassigned from this section.\n\n`;
+            }
+            confirmMessage += 'This action cannot be undone.';
+            
+            if (!confirm(confirmMessage)) {
+                return;
+            }
+            
+            // Double confirmation for sections with students
+            if (enrolled > 0) {
+                if (!confirm(`Final confirmation: Delete section "${sectionName}" and unassign ${enrolled} student(s)?`)) {
+                    return;
+                }
+            }
+            
+            // Get CSRF token
+            const csrfTokenInput = document.querySelector('input[name="csrf_token"]');
+            if (!csrfTokenInput) {
+                alert('Error: Security token not found. Please refresh the page.');
+                return;
+            }
+            
+            // Disable button during deletion
+            btn.disabled = true;
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            
+            // Prepare form data
+            const formData = new FormData();
+            formData.append('csrf_token', csrfTokenInput.value);
+            formData.append('section_id', sectionId);
+            
+            // Get base URL
+            const baseUrl = window.location.origin + (window.location.pathname.includes('/student-monitoring') ? '/student-monitoring' : '');
+            const deleteUrl = `${baseUrl}/admin/delete-section`;
+            
+            // Send delete request with proper headers
+            fetch(deleteUrl, {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                },
+                body: formData
+            })
+            .then(response => {
+                // Check if response is ok
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        try {
+                            const json = JSON.parse(text);
+                            throw new Error(json.error || 'Failed to delete section');
+                        } catch (e) {
+                            if (e instanceof Error && e.message) {
+                                throw e;
+                            }
+                            throw new Error('Server error: ' + response.status + ' ' + response.statusText);
+                        }
+                    });
+                }
+                
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    return response.json();
+                } else {
+                    // If it's not JSON, try to parse as text
+                    return response.text().then(text => {
+                        // If it's a redirect or HTML, assume success and reload
+                        return { success: true, message: 'Section deleted successfully!' };
+                    });
+                }
+            })
+            .then(data => {
+                if (data && data.success) {
+                    // Show success notification
+                    if (typeof showNotification === 'function') {
+                        showNotification(data.message || 'Section deleted successfully!', 'success');
+                    } else {
+                        alert(data.message || 'Section deleted successfully!');
+                    }
+                    
+                    // ALWAYS reload the page after successful deletion to ensure database consistency
+                    // This ensures the UI reflects the actual database state
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    // Show error notification
+                    const errorMsg = (data && data.error) ? data.error : 'Failed to delete section';
+                    if (typeof showNotification === 'function') {
+                        showNotification(errorMsg, 'error');
+                    } else {
+                        alert('Error: ' + errorMsg);
+                    }
+                    btn.disabled = false;
+                    btn.innerHTML = originalHTML;
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting section:', error);
+                const errorMsg = error.message || 'An error occurred while deleting the section. Please try again.';
+                if (typeof showNotification === 'function') {
+                    showNotification(errorMsg, 'error');
+                } else {
+                    alert('Error: ' + errorMsg);
+                }
+                btn.disabled = false;
+                btn.innerHTML = originalHTML;
+            });
+            
+            return;
+        }
+    }
+    
+    // Attach event listener immediately
+    document.addEventListener('click', handleActionClick);
+    
+    // Wait for functions and initialize
+    waitForFunctions(function() {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initSectionsPage);
+        } else {
+            initSectionsPage();
+        }
+    });
+})();
 </script>
 

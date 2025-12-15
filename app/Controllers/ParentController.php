@@ -126,6 +126,11 @@ class ParentController extends Controller
                         error_log("Parent dashboard AI analysis error: " . $e->getMessage());
                     }
                     
+                    // Get chart data for child performance
+                    $gradeTrendData = $this->getGradeTrendData($pdo, (int)$childInfo['id'], $academicYear);
+                    $attendanceTrendData = $this->getAttendanceTrendData($pdo, (int)$childInfo['id'], (int)($childInfo['section_id'] ?? 0), $academicYear);
+                    $subjectPerformanceData = $this->getSubjectPerformanceData($pdo, (int)$childInfo['id'], $academicYear, $quarter);
+                    
                     try {
                         $activityStmt = $pdo->prepare("
                             SELECT description, created_at
@@ -167,6 +172,11 @@ class ParentController extends Controller
                 'upcoming_events' => $upcomingEvents,
                 'ai_analysis' => $aiAnalysis ?? null,
                 'alerts' => $childAlerts ?? [],
+                'chart_data' => $childInfo ? [
+                    'grade_trends' => $gradeTrendData ?? ['labels' => [], 'data' => []],
+                    'attendance_trends' => $attendanceTrendData ?? ['labels' => [], 'attendance_rates' => []],
+                    'subject_performance' => $subjectPerformanceData ?? ['labels' => [], 'data' => []],
+                ] : null,
             ], 'layouts/dashboard');
         } catch (\Exception $e) {
             \Helpers\ErrorHandler::internalServerError('Failed to load parent dashboard: ' . $e->getMessage());
@@ -710,6 +720,150 @@ class ParentController extends Controller
             return 3;
         } else {
             return 4;
+        }
+    }
+    
+    /**
+     * Get grade trend data for charts (same as StudentController)
+     */
+    private function getGradeTrendData($pdo, int $studentId, string $academicYear): array
+    {
+        try {
+            $stmt = $pdo->prepare("
+                SELECT 
+                    g.quarter,
+                    AVG(ROUND((g.grade_value / NULLIF(g.max_score, 0)) * 100, 2)) as avg_percentage,
+                    COUNT(DISTINCT g.subject_id) as subject_count
+                FROM grades g
+                WHERE g.student_id = ? 
+                  AND g.academic_year = ?
+                GROUP BY g.quarter
+                ORDER BY g.quarter
+            ");
+            $stmt->execute([$studentId, $academicYear]);
+            $quarterlyData = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            
+            $labels = [];
+            $data = [];
+            
+            for ($q = 1; $q <= 4; $q++) {
+                $labels[] = "Q{$q}";
+                $quarterData = array_filter($quarterlyData, fn($d) => (int)$d['quarter'] === $q);
+                if (!empty($quarterData)) {
+                    $quarter = reset($quarterData);
+                    $data[] = round((float)$quarter['avg_percentage'], 2);
+                } else {
+                    $data[] = null;
+                }
+            }
+            
+            return [
+                'labels' => $labels,
+                'data' => $data,
+            ];
+        } catch (\Exception $e) {
+            error_log("getGradeTrendData error: " . $e->getMessage());
+            return ['labels' => ['Q1', 'Q2', 'Q3', 'Q4'], 'data' => []];
+        }
+    }
+    
+    /**
+     * Get attendance trend data for charts
+     */
+    private function getAttendanceTrendData($pdo, int $studentId, int $sectionId, string $academicYear): array
+    {
+        try {
+            $yearParts = explode('-', $academicYear);
+            $startYear = (int)($yearParts[0] ?? date('Y'));
+            
+            $stmt = $pdo->prepare("
+                SELECT 
+                    DATE_FORMAT(attendance_date, '%Y-%m') as month,
+                    COUNT(*) as total_days,
+                    SUM(CASE WHEN status IN ('present', 'late', 'excused') THEN 1 ELSE 0 END) as present_days
+                FROM attendance
+                WHERE student_id = ?
+                  AND section_id = ?
+                  AND YEAR(attendance_date) BETWEEN ? AND ?
+                GROUP BY DATE_FORMAT(attendance_date, '%Y-%m')
+                ORDER BY month
+                LIMIT 12
+            ");
+            $stmt->execute([$studentId, $sectionId, $startYear, $startYear + 1]);
+            $monthlyData = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            
+            $labels = [];
+            $attendanceRates = [];
+            
+            foreach ($monthlyData as $month) {
+                $monthName = date('M Y', strtotime($month['month'] . '-01'));
+                $labels[] = $monthName;
+                
+                $total = (int)$month['total_days'];
+                $present = (int)$month['present_days'];
+                
+                $rate = $total > 0 ? round(($present / $total) * 100, 1) : 100;
+                $attendanceRates[] = $rate;
+            }
+            
+            return [
+                'labels' => $labels,
+                'attendance_rates' => $attendanceRates,
+            ];
+        } catch (\Exception $e) {
+            error_log("getAttendanceTrendData error: " . $e->getMessage());
+            return ['labels' => [], 'attendance_rates' => []];
+        }
+    }
+    
+    /**
+     * Get subject performance data for charts
+     */
+    private function getSubjectPerformanceData($pdo, int $studentId, string $academicYear, int $quarter): array
+    {
+        try {
+            $stmt = $pdo->prepare("
+                SELECT 
+                    s.name as subject_name,
+                    AVG(ROUND((g.grade_value / NULLIF(g.max_score, 0)) * 100, 2)) as avg_grade
+                FROM grades g
+                JOIN subjects s ON g.subject_id = s.id
+                WHERE g.student_id = ?
+                  AND g.academic_year = ?
+                  AND g.quarter = ?
+                GROUP BY g.subject_id, s.name
+                ORDER BY avg_grade ASC
+                LIMIT 10
+            ");
+            $stmt->execute([$studentId, $academicYear, $quarter]);
+            $subjectData = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            
+            $labels = [];
+            $data = [];
+            $colors = [];
+            
+            foreach ($subjectData as $subject) {
+                $labels[] = $subject['subject_name'];
+                $grade = round((float)$subject['avg_grade'], 1);
+                $data[] = $grade;
+                
+                if ($grade >= 75) {
+                    $colors[] = 'rgba(25, 135, 84, 0.8)';
+                } elseif ($grade >= 70) {
+                    $colors[] = 'rgba(255, 193, 7, 0.8)';
+                } else {
+                    $colors[] = 'rgba(220, 53, 69, 0.8)';
+                }
+            }
+            
+            return [
+                'labels' => $labels,
+                'data' => $data,
+                'colors' => $colors,
+            ];
+        } catch (\Exception $e) {
+            error_log("getSubjectPerformanceData error: " . $e->getMessage());
+            return ['labels' => [], 'data' => [], 'colors' => []];
         }
     }
 }

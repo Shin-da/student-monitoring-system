@@ -34,7 +34,8 @@ try {
 
     $teacherId = $_GET['teacher_id'] ?? null;
     
-    if (!$teacherId) {
+    // Validate teacher ID: treat null/empty as missing, but allow numeric 0 (legacy data) to return empty schedule
+    if ($teacherId === null || $teacherId === '') {
         http_response_code(400);
         echo json_encode([
             'success' => false,
@@ -43,17 +44,19 @@ try {
         exit();
     }
 
+    // Normalize to integer to avoid accidental string/whitespace issues
+    $teacherId = (int)$teacherId;
+
     $pdo = \Core\Database::connection($config['database']);
 
-    // Get teacher's current schedules
+    // Get teacher's current schedules (use DISTINCT to prevent duplicates from JOINs)
     $stmt = $pdo->prepare('
-        SELECT 
+        SELECT DISTINCT
             ts.id,
             ts.day_of_week,
             ts.start_time,
             ts.end_time,
             ts.class_id,
-            c.id as class_id,
             sec.name as section_name,
             sub.name as subject_name,
             c.schedule as class_schedule

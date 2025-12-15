@@ -90,6 +90,9 @@
       <symbol id="icon-chart" viewBox="0 0 24 24">
         <path fill="currentColor" d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/>
       </symbol>
+      <symbol id="icon-line-chart" viewBox="0 0 24 24">
+        <path fill="currentColor" d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/>
+      </symbol>
       <symbol id="icon-plus" viewBox="0 0 24 24">
         <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
       </symbol>
@@ -128,6 +131,9 @@
       </symbol>
       <symbol id="icon-arrow-down" viewBox="0 0 24 24">
         <path fill="currentColor" d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/>
+      </symbol>
+      <symbol id="icon-arrow-right" viewBox="0 0 24 24">
+        <path fill="currentColor" d="M8.59 16.59L13.17 12L8.59 7.41L10 6l6 6l-6 6l-1.41-1.41z"/>
       </symbol>
       <symbol id="icon-more" viewBox="0 0 24 24">
         <path fill="currentColor" d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
@@ -200,7 +206,7 @@
       <div class="sidebar-header">
         <a class="sidebar-brand" href="<?= $dashboardUrl ?>">
           <div class="sidebar-brand-icon">
-            <img src="<?= \Helpers\Url::asset('assets/images/logo/logo-circle-transparent.png') ?>" alt="St. Ignatius Logo">
+            <img src="<?= \Helpers\Url::asset('assets/images/logo/logo-circle-transparent.png') ?>" alt="St. Ignatius Logo" style="width: 32px; height: 32px; max-width: 32px; max-height: 32px; object-fit: contain; display: block; flex-shrink: 0;">
           </div>
           <div>
             <div class="sidebar-brand-text">St. Ignatius</div>
@@ -310,12 +316,6 @@
                     <use href="#icon-students"></use>
                   </svg>
                   <span>My Students</span>
-                </a>
-                <a class="nav-link <?= ($activeNav ?? '') === 'student-progress' ? 'active' : '' ?>" href="<?= \Helpers\Url::to('/teacher/student-progress') ?>">
-                  <svg class="nav-icon" width="16" height="16" fill="currentColor">
-                    <use href="#icon-performance"></use>
-                  </svg>
-                  <span>Student Progress</span>
                 </a>
               </div>
             </div>
@@ -546,13 +546,6 @@
             <span>Alerts</span>
           </a>
 
-          <!-- Resources -->
-          <a class="nav-link <?= ($activeNav ?? '') === 'resources' ? 'active' : '' ?>" href="<?= \Helpers\Url::to('/student/resources') ?>">
-            <svg class="nav-icon" width="20" height="20" fill="currentColor">
-              <use href="#icon-download"></use>
-            </svg>
-            <span>Resources</span>
-          </a>
         <?php endif; ?>
         
         <?php if ($role === 'parent'): ?>
@@ -585,7 +578,7 @@
                 </a>
                 <a class="nav-link <?= ($activeNav ?? '') === 'grades' ? 'active' : '' ?>" href="<?= \Helpers\Url::to('/parent/grades') ?>">
                   <svg class="nav-icon" width="16" height="16" fill="currentColor">
-                    <use href="#icon-performance"></use>
+                    <use href="#icon-line-chart"></use>
                   </svg>
                   <span>Child's Grades</span>
                 </a>
@@ -611,10 +604,11 @@
 
       <!-- Sidebar Footer -->
       <div class="sidebar-footer">
-        <form method="post" action="<?= \Helpers\Url::to('/logout') ?>">
-          <button class="sidebar-logout" type="submit">
+        <form method="post" action="<?= \Helpers\Url::to('/logout') ?>" id="logout-form" class="logout-form">
+          <input type="hidden" name="csrf_token" value="<?= \Helpers\Csrf::generateToken() ?>">
+          <button class="sidebar-logout" type="button" id="logout-btn">
             <svg width="16" height="16" fill="currentColor">
-              <use href="#icon-logout"></use>
+              <use href="#icon-arrow-right"></use>
             </svg>
             <span>Logout</span>
           </button>
@@ -629,7 +623,29 @@
             <a href="<?= $dashboardUrl ?>" class="btn btn-sm btn-outline-secondary">← Back to Dashboard</a>
           <?php endif; ?>
         </div>
-        <div>
+        <div class="d-flex align-items-center gap-2">
+          <!-- Notification Bell -->
+          <div id="notification-bell" class="notification-bell-container">
+            <button class="btn btn-outline-secondary notification-bell-btn" id="notification-bell-btn" type="button" aria-label="Notifications" title="Notifications">
+              <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
+              </svg>
+              <span class="notification-badge" id="notification-badge">0</span>
+            </button>
+            <div class="notification-dropdown" id="notification-dropdown">
+              <div class="notification-dropdown-header">
+                <h6>Notifications</h6>
+                <button class="btn-link btn-sm" id="mark-all-read-btn">Mark all as read</button>
+              </div>
+              <div class="notification-dropdown-body" id="notification-list">
+                <div class="notification-loading">Loading...</div>
+              </div>
+              <div class="notification-dropdown-footer">
+                <a href="#" class="btn-link btn-sm" id="view-all-notifications">View all notifications</a>
+              </div>
+            </div>
+          </div>
+          <!-- Theme Toggle -->
           <button class="btn btn-outline-secondary theme-toggle" type="button" data-theme-toggle title="Toggle theme" aria-label="Toggle between light and dark theme">
             <svg class="icon" aria-hidden="true">
               <use data-theme-icon href="#icon-sun"></use>
@@ -638,17 +654,61 @@
         </div>
       </nav>
       <main class="content-area" id="main-content" role="main">
+        <!-- Flash Messages - Converted to Toast Notifications via JavaScript below -->
+        <?php 
+        // Store notifications once to avoid clearing them before JavaScript conversion
+        $flashNotifications = \Helpers\Notification::has() ? \Helpers\Notification::getFlashed() : [];
+        ?>
+        
         <?= $content ?? '' ?>
       </main>
     </div>
   </div>
   <script src="<?= \Helpers\Url::asset('app.js') ?>"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="<?= \Helpers\Url::asset('assets/accessibility.js') ?>"></script>
   <script src="<?= \Helpers\Url::asset('assets/performance.js') ?>"></script>
 
   <!-- Include external CSS and JS files -->
   <script src="<?= \Helpers\Url::asset('sidebar-complete.js') ?>"></script>
+  <!-- Toast Notifications (Bootstrap 5) -->
+  <script src="<?= \Helpers\Url::asset('assets/toast-notifications.js') ?>"></script>
+  <!-- SweetAlert2 for Confirmations -->
+  <script src="<?= \Helpers\Url::asset('assets/sweetalert-integration.js') ?>"></script>
+  <!-- Notification Center -->
+  <script src="<?= \Helpers\Url::asset('assets/notification-center.js') ?>"></script>
+  <!-- Logout Confirmation -->
+  <script src="<?= \Helpers\Url::asset('assets/logout-confirmation.js') ?>"></script>
+  
+  <!-- Flash Messages to Toast -->
+  <script>
+    (function() {
+      // Convert PHP flash messages to Bootstrap toast notifications
+      <?php if (!empty($flashNotifications)): ?>
+      const flashMessages = <?= json_encode($flashNotifications) ?>;
+      
+      if (window.toastNotifications && flashMessages) {
+        // Wait for DOM and Bootstrap to be ready
+        document.addEventListener('DOMContentLoaded', function() {
+          setTimeout(function() {
+            Object.keys(flashMessages).forEach(function(type) {
+              const messages = Array.isArray(flashMessages[type]) ? flashMessages[type] : [flashMessages[type]];
+              messages.forEach(function(message) {
+                if (message && message.trim()) {
+                  // Use Bootstrap toasts
+                  window.toastNotifications[type](message, {
+                    duration: 5000
+                  });
+                }
+              });
+            });
+          }, 300); // Small delay to ensure Bootstrap is initialized
+        });
+      }
+      <?php endif; ?>
+    })();
+  </script>
 </body>
 
 </html>

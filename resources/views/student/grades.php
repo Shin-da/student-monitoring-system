@@ -18,20 +18,34 @@ $studentId = $student_id ?? 0;
       <h1 class="h3 mb-1 text-primary">My Academic Performance</h1>
       <p class="text-muted mb-0">View your grades by quarter</p>
     </div>
-    <div class="d-flex gap-2">
-      <a href="<?= \Helpers\Url::to('/grades/sf10?student_id=' . $studentId . '&quarter=' . $currentQuarter) ?>" 
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="<?= \Helpers\Url::to('/grades/sf10?student_id=' . $studentId . '&quarter=' . $currentQuarter . '&academic_year=' . urlencode($currentAcademicYear)) ?>" 
          class="btn btn-outline-primary" target="_blank">
         <svg class="icon me-2" width="16" height="16" fill="currentColor">
           <use href="#icon-download"></use>
         </svg>
         Download SF10
       </a>
-      <a href="<?= \Helpers\Url::to('/grades/sf9?student_id=' . $studentId) ?>" 
-         class="btn btn-primary" target="_blank">
+      <a href="<?= \Helpers\Url::to('/grades/sf10/view?student_id=' . $studentId . '&quarter=' . $currentQuarter . '&academic_year=' . urlencode($currentAcademicYear)) ?>" 
+         class="btn btn-outline-secondary" target="_blank">
         <svg class="icon me-2" width="16" height="16" fill="currentColor">
           <use href="#icon-report"></use>
         </svg>
+        Print SF10
+      </a>
+      <a href="<?= \Helpers\Url::to('/grades/sf9?student_id=' . $studentId . '&academic_year=' . urlencode($currentAcademicYear)) ?>" 
+         class="btn btn-primary" target="_blank">
+        <svg class="icon me-2" width="16" height="16" fill="currentColor">
+          <use href="#icon-download"></use>
+        </svg>
         Download SF9
+      </a>
+      <a href="<?= \Helpers\Url::to('/grades/sf9/view?student_id=' . $studentId . '&academic_year=' . urlencode($currentAcademicYear)) ?>" 
+         class="btn btn-outline-primary" target="_blank">
+        <svg class="icon me-2" width="16" height="16" fill="currentColor">
+          <use href="#icon-report"></use>
+        </svg>
+        Print SF9
       </a>
     </div>
   </div>
@@ -151,7 +165,7 @@ $studentId = $student_id ?? 0;
       </div>
     </div>
     <div class="col-md-4">
-      <a href="<?= \Helpers\Url::to('/grades/sf10/view?student_id=' . $studentId . '&quarter=' . $currentQuarter) ?>" 
+      <a href="<?= \Helpers\Url::to('/grades/sf10/view?student_id=' . $studentId . '&quarter=' . $currentQuarter . '&academic_year=' . urlencode($currentAcademicYear)) ?>" 
          class="btn btn-outline-secondary w-100" target="_blank">
         <svg class="icon me-2" width="16" height="16" fill="currentColor">
           <use href="#icon-report"></use>

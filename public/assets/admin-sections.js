@@ -163,17 +163,26 @@ function viewSectionDetails(sectionId) {
     const modal = new bootstrap.Modal(document.getElementById('sectionDetailsModal'));
     const content = document.getElementById('sectionDetailsContent');
     
-    content.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">Loading...</p></div>';
+    content.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">Loading section details...</p></div>';
     modal.show();
 
-    fetch(`<?= \Helpers\Url::to('/admin/api/section-details') ?>?section_id=${sectionId}`)
-        .then(response => response.json())
+    // Get base URL from the page
+    const baseUrl = window.location.origin + (window.location.pathname.includes('/student-monitoring') ? '/student-monitoring' : '');
+    const apiUrl = `${baseUrl}/admin/api/section-details?section_id=${encodeURIComponent(sectionId)}`;
+
+    fetch(apiUrl)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success && data.section) {
                 const section = data.section;
                 const enrolled = parseInt(section.enrolled_students) || 0;
                 const max = parseInt(section.max_students) || 0;
-                const available = parseInt(section.available_slots) || 0;
+                const available = Math.max(0, parseInt(section.available_slots) || (max - enrolled));
                 const percentage = max > 0 ? (enrolled / max) * 100 : 0;
 
                 let statusClass = 'bg-success';
@@ -190,11 +199,11 @@ function viewSectionDetails(sectionId) {
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <h6 class="text-muted mb-1">Section Name</h6>
-                            <h5 class="mb-0">${escapeHtml(section.name)}</h5>
+                            <h5 class="mb-0">${escapeHtml(section.name || 'N/A')}</h5>
                         </div>
                         <div class="col-md-6">
                             <h6 class="text-muted mb-1">Grade Level</h6>
-                            <h5 class="mb-0"><span class="badge bg-info">Grade ${section.grade_level}</span></h5>
+                            <h5 class="mb-0"><span class="badge bg-info">Grade ${section.grade_level || 'N/A'}</span></h5>
                         </div>
                     </div>
                     
@@ -205,7 +214,7 @@ function viewSectionDetails(sectionId) {
                         </div>
                         <div class="col-md-6">
                             <h6 class="text-muted mb-1">School Year</h6>
-                            <p class="mb-0">${escapeHtml(section.school_year)}</p>
+                            <p class="mb-0">${escapeHtml(section.school_year || 'N/A')}</p>
                         </div>
                     </div>
 
@@ -238,19 +247,24 @@ function viewSectionDetails(sectionId) {
                         <h6 class="text-muted mb-1">Adviser</h6>
                         <p class="mb-0">${escapeHtml(section.adviser_name)}</p>
                     </div>
-                    ` : ''}
+                    ` : '<div class="mb-3"><h6 class="text-muted mb-1">Adviser</h6><p class="mb-0 text-muted">No adviser assigned</p></div>'}
 
                     <div class="alert alert-info">
-                        <small>Section ID: ${section.id} | Status: ${section.is_active ? 'Active' : 'Inactive'}</small>
+                        <small><strong>Section ID:</strong> ${section.id} | <strong>Status:</strong> ${section.is_active ? 'Active' : 'Inactive'}</small>
                     </div>
                 `;
             } else {
-                content.innerHTML = '<div class="alert alert-danger">Failed to load section details.</div>';
+                content.innerHTML = `<div class="alert alert-danger">
+                    <strong>Error:</strong> ${data.error || 'Failed to load section details.'}
+                </div>`;
             }
         })
         .catch(error => {
-            console.error('Error:', error);
-            content.innerHTML = '<div class="alert alert-danger">Error loading section details.</div>';
+            console.error('Error loading section details:', error);
+            content.innerHTML = `<div class="alert alert-danger">
+                <strong>Error:</strong> Unable to load section details. Please try again.
+                <br><small>${error.message}</small>
+            </div>`;
         });
 }
 
@@ -263,10 +277,16 @@ function editSectionCapacity(sectionId, currentMax, enrolled) {
     const info = document.getElementById('capacityInfo');
     const maxInput = document.getElementById('edit_max_students');
 
+    if (!form || !info || !maxInput) {
+        console.error('Required elements not found for edit capacity modal');
+        return;
+    }
+
     document.getElementById('edit_section_id').value = sectionId;
     maxInput.value = currentMax;
-    maxInput.min = enrolled;
+    maxInput.min = Math.max(1, enrolled); // Ensure minimum is at least enrolled count
 
+    const available = Math.max(0, currentMax - enrolled);
     info.innerHTML = `
         <div class="row">
             <div class="col-md-4">
@@ -279,8 +299,8 @@ function editSectionCapacity(sectionId, currentMax, enrolled) {
             </div>
             <div class="col-md-4">
                 <small class="text-muted">Available Slots:</small>
-                <div class="fw-bold text-${currentMax - enrolled <= 0 ? 'danger' : 'success'}">
-                    ${currentMax - enrolled} slots
+                <div class="fw-bold text-${available <= 0 ? 'danger' : 'success'}">
+                    ${available} slots
                 </div>
             </div>
         </div>
@@ -289,24 +309,50 @@ function editSectionCapacity(sectionId, currentMax, enrolled) {
         </div>
     `;
 
-    maxInput.addEventListener('input', function() {
+    // Remove existing event listeners by cloning the input
+    const newMaxInput = maxInput.cloneNode(true);
+    maxInput.parentNode.replaceChild(newMaxInput, maxInput);
+    const updatedMaxInput = document.getElementById('edit_max_students');
+    
+    updatedMaxInput.addEventListener('input', function() {
         const newMax = parseInt(this.value) || 0;
         if (newMax < enrolled) {
-            this.setCustomValidity(`Must be at least ${enrolled}`);
+            this.setCustomValidity(`Must be at least ${enrolled} (current enrolled students)`);
+            this.classList.add('is-invalid');
         } else {
             this.setCustomValidity('');
+            this.classList.remove('is-invalid');
         }
     });
 
-    // Fetch current room value
-    fetch(`<?= \Helpers\Url::to('/admin/api/section-details') ?>?section_id=${sectionId}`)
-        .then(response => response.json())
+    // Fetch current room value and other section details
+    const baseUrl = window.location.origin + (window.location.pathname.includes('/student-monitoring') ? '/student-monitoring' : '');
+    const apiUrl = `${baseUrl}/admin/api/section-details?section_id=${encodeURIComponent(sectionId)}`;
+    
+    fetch(apiUrl)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success && data.section) {
-                document.getElementById('edit_room').value = data.section.room || '';
+                const roomInput = document.getElementById('edit_room');
+                if (roomInput) {
+                    roomInput.value = data.section.room || '';
+                }
+                // Update max if needed (in case data changed)
+                if (updatedMaxInput) {
+                    const currentEnrolled = parseInt(data.section.enrolled_students) || 0;
+                    updatedMaxInput.min = Math.max(1, currentEnrolled);
+                }
             }
         })
-        .catch(error => console.error('Error loading section:', error));
+        .catch(error => {
+            console.error('Error loading section details:', error);
+            // Continue anyway - we have the basic info
+        });
 
     modal.show();
 }
@@ -318,27 +364,54 @@ function assignStudentToSection(sectionId, sectionName) {
     const modal = new bootstrap.Modal(document.getElementById('assignStudentModal'));
     const sectionNameDisplay = document.getElementById('sectionNameDisplay');
     const sectionInfo = document.getElementById('sectionInfo');
+    const sectionIdInput = document.getElementById('assign_section_id');
     
-    document.getElementById('assign_section_id').value = sectionId;
-    sectionNameDisplay.textContent = sectionName;
+    if (!sectionIdInput || !sectionNameDisplay || !sectionInfo) {
+        console.error('Required elements not found for assign student modal');
+        return;
+    }
+    
+    sectionIdInput.value = sectionId;
+    sectionNameDisplay.textContent = sectionName || 'Unknown Section';
 
     // Show section info with capacity
-    fetch(`<?= \Helpers\Url::to('/admin/api/section-details') ?>?section_id=${sectionId}`)
-        .then(response => response.json())
+    const baseUrl = window.location.origin + (window.location.pathname.includes('/student-monitoring') ? '/student-monitoring' : '');
+    const apiUrl = `${baseUrl}/admin/api/section-details?section_id=${encodeURIComponent(sectionId)}`;
+    
+    fetch(apiUrl)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success && data.section) {
                 const section = data.section;
                 const enrolled = parseInt(section.enrolled_students) || 0;
                 const max = parseInt(section.max_students) || 0;
-                const available = parseInt(section.available_slots) || 0;
+                const available = Math.max(0, parseInt(section.available_slots) || (max - enrolled));
 
                 sectionInfo.innerHTML = `
-                    <strong>Section:</strong> ${escapeHtml(section.name)}<br>
+                    <strong>Section:</strong> ${escapeHtml(section.name || sectionName)}<br>
+                    <strong>Grade Level:</strong> Grade ${section.grade_level || 'N/A'}<br>
                     <strong>Capacity:</strong> ${enrolled}/${max} (${available} available)
+                    ${available <= 0 ? '<br><span class="text-danger"><small>⚠️ Section is full!</small></span>' : ''}
+                `;
+            } else {
+                sectionInfo.innerHTML = `
+                    <strong>Section:</strong> ${escapeHtml(sectionName)}<br>
+                    <span class="text-muted">Loading capacity information...</span>
                 `;
             }
         })
-        .catch(error => console.error('Error:', error));
+        .catch(error => {
+            console.error('Error loading section details:', error);
+            sectionInfo.innerHTML = `
+                <strong>Section:</strong> ${escapeHtml(sectionName)}<br>
+                <span class="text-warning">Could not load capacity information</span>
+            `;
+        });
 
     // Load unassigned students
     loadUnassignedStudents();
@@ -351,29 +424,44 @@ function assignStudentToSection(sectionId, sectionName) {
  */
 function loadUnassignedStudents(search = '') {
     const tbody = document.getElementById('studentsTableBody');
-    tbody.innerHTML = '<tr><td colspan="5" class="text-center"><div class="spinner-border spinner-border-sm me-2"></div>Loading...</td></tr>';
+    if (!tbody) {
+        console.error('studentsTableBody not found');
+        return;
+    }
+    
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center"><div class="spinner-border spinner-border-sm me-2"></div>Loading students...</td></tr>';
 
-    const url = `<?= \Helpers\Url::to('/admin/api/unassigned-students') ?>` + 
-                (search ? `&search=${encodeURIComponent(search)}` : '');
+    const baseUrl = window.location.origin + (window.location.pathname.includes('/student-monitoring') ? '/student-monitoring' : '');
+    const url = `${baseUrl}/admin/api/unassigned-students` + 
+                (search ? `?search=${encodeURIComponent(search)}` : '');
 
     fetch(url)
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success && data.students) {
                 if (data.students.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No unassigned students found.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No unassigned students found.</td></tr>';
                     return;
                 }
 
+                const sectionIdInput = document.getElementById('assign_section_id');
+                const sectionId = sectionIdInput ? sectionIdInput.value : 0;
+
                 tbody.innerHTML = data.students.map(student => `
                     <tr>
-                        <td>${escapeHtml(student.name)}</td>
+                        <td>${escapeHtml(student.name || 'Unknown')}</td>
                         <td><code>${escapeHtml(student.lrn || 'N/A')}</code></td>
                         <td><span class="badge bg-info">Grade ${student.grade_level || 'N/A'}</span></td>
-                        <td><small>${escapeHtml(student.email)}</small></td>
+                        <td><small>${escapeHtml(student.email || 'N/A')}</small></td>
                         <td>
                             <button type="button" class="btn btn-sm btn-primary" 
-                                    onclick="confirmAssignStudent(${student.id}, ${document.getElementById('assign_section_id').value})">
+                                    onclick="confirmAssignStudent(${student.id}, ${sectionId})"
+                                    title="Assign to section">
                                 <svg width="14" height="14" fill="currentColor">
                                     <use href="#icon-check"></use>
                                 </svg>
@@ -383,12 +471,14 @@ function loadUnassignedStudents(search = '') {
                     </tr>
                 `).join('');
             } else {
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Failed to load students.</td></tr>';
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4">
+                    ${data.error || 'Failed to load students.'}
+                </td></tr>`;
             }
         })
         .catch(error => {
-            console.error('Error:', error);
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Error loading students.</td></tr>';
+            console.error('Error loading unassigned students:', error);
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4">Error loading students. Please try again.</td></tr>';
         });
 }
 
@@ -404,18 +494,28 @@ function searchUnassignedStudents() {
  * Confirm and assign student
  */
 function confirmAssignStudent(studentId, sectionId) {
+    if (!studentId || !sectionId) {
+        showNotification('Invalid student or section ID', 'error');
+        return;
+    }
+
     if (!confirm('Are you sure you want to assign this student to the selected section?')) {
         return;
     }
 
+    const csrfTokenInput = document.querySelector('input[name="csrf_token"]');
+    if (!csrfTokenInput) {
+        showNotification('CSRF token not found. Please refresh the page.', 'error');
+        return;
+    }
+
+    const baseUrl = window.location.origin + (window.location.pathname.includes('/student-monitoring') ? '/student-monitoring' : '');
     const form = document.createElement('form');
     form.method = 'POST';
-    form.action = '<?= \Helpers\Url::to('/admin/assign-student-to-section') ?>';
-    
-    const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+    form.action = `${baseUrl}/admin/assign-student-to-section`;
     
     form.innerHTML = `
-        <input type="hidden" name="csrf_token" value="${csrfToken}">
+        <input type="hidden" name="csrf_token" value="${csrfTokenInput.value}">
         <input type="hidden" name="student_id" value="${studentId}">
         <input type="hidden" name="section_id" value="${sectionId}">
     `;
@@ -469,24 +569,63 @@ document.addEventListener('DOMContentLoaded', function() {
         createForm.addEventListener('submit', function(e) {
             e.preventDefault();
             
-            const formData = new FormData(this);
+            const submitBtn = this.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creating...';
+            }
             
-            fetch(this.action, {
+            const formData = new FormData(this);
+            const baseUrl = window.location.origin + (window.location.pathname.includes('/student-monitoring') ? '/student-monitoring' : '');
+            const actionUrl = this.action.startsWith('http') ? this.action : baseUrl + this.action;
+            
+            fetch(actionUrl, {
                 method: 'POST',
                 body: formData
             })
-            .then(response => response.json())
+            .then(response => {
+                // Check if response is JSON or HTML redirect
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    return response.json();
+                } else {
+                    // If it's a redirect, reload the page
+                    if (response.redirected || response.status === 302 || response.status === 200) {
+                        return { success: true, message: 'Section created successfully!' };
+                    }
+                    throw new Error('Unexpected response format');
+                }
+            })
             .then(data => {
                 if (data.success) {
                     showNotification(data.message || 'Section created successfully!', 'success');
-                    setTimeout(() => window.location.reload(), 1000);
+                    // Close modal and reset form
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('createSectionModal'));
+                    if (modal) {
+                        modal.hide();
+                        // Reset form after modal is hidden
+                        setTimeout(() => {
+                            const form = document.getElementById('createSectionForm');
+                            if (form) form.reset();
+                        }, 300);
+                    }
+                    // Reload page after short delay to show new section
+                    setTimeout(() => window.location.reload(), 1500);
                 } else {
                     showNotification(data.error || 'Failed to create section', 'error');
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = 'Create Section';
+                    }
                 }
             })
             .catch(error => {
-                console.error('Error:', error);
+                console.error('Error creating section:', error);
                 showNotification('An error occurred. Please try again.', 'error');
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = 'Create Section';
+                }
             });
         });
     }
@@ -497,26 +636,94 @@ document.addEventListener('DOMContentLoaded', function() {
         editForm.addEventListener('submit', function(e) {
             e.preventDefault();
             
-            const formData = new FormData(this);
+            const submitBtn = this.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Updating...';
+            }
             
-            fetch(this.action, {
+            const formData = new FormData(this);
+            const baseUrl = window.location.origin + (window.location.pathname.includes('/student-monitoring') ? '/student-monitoring' : '');
+            const actionUrl = this.action.startsWith('http') ? this.action : baseUrl + this.action;
+            
+            fetch(actionUrl, {
                 method: 'POST',
                 body: formData
             })
-            .then(response => response.json())
+            .then(response => {
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    return response.json();
+                } else {
+                    if (response.redirected || response.status === 302 || response.status === 200) {
+                        return { success: true, message: 'Section updated successfully!' };
+                    }
+                    throw new Error('Unexpected response format');
+                }
+            })
             .then(data => {
                 if (data.success) {
                     showNotification(data.message || 'Section updated successfully!', 'success');
-                    setTimeout(() => window.location.reload(), 1000);
+                    // Close modal and reset form
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('editCapacityModal'));
+                    if (modal) {
+                        modal.hide();
+                        // Reset form after modal is hidden
+                        setTimeout(() => {
+                            const form = document.getElementById('editCapacityForm');
+                            if (form) form.reset();
+                        }, 300);
+                    }
+                    // Reload page after short delay to show updated section
+                    setTimeout(() => window.location.reload(), 1500);
                 } else {
                     showNotification(data.error || 'Failed to update section', 'error');
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = 'Update Capacity';
+                    }
                 }
             })
             .catch(error => {
-                console.error('Error:', error);
+                console.error('Error updating section:', error);
                 showNotification('An error occurred. Please try again.', 'error');
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = 'Update Capacity';
+                }
             });
         });
     }
 });
+
+// Explicitly ensure functions are globally available
+(function() {
+    'use strict';
+    if (typeof window !== 'undefined') {
+        // Ensure critical functions are available on window object
+        if (typeof viewSectionDetails === 'function') {
+            window.viewSectionDetails = viewSectionDetails;
+        }
+        if (typeof editSectionCapacity === 'function') {
+            window.editSectionCapacity = editSectionCapacity;
+        }
+        if (typeof assignStudentToSection === 'function') {
+            window.assignStudentToSection = assignStudentToSection;
+        }
+        if (typeof refreshSectionData === 'function') {
+            window.refreshSectionData = refreshSectionData;
+        }
+        if (typeof filterSections === 'function') {
+            window.filterSections = filterSections;
+        }
+        if (typeof loadUnassignedStudents === 'function') {
+            window.loadUnassignedStudents = loadUnassignedStudents;
+        }
+        if (typeof searchUnassignedStudents === 'function') {
+            window.searchUnassignedStudents = searchUnassignedStudents;
+        }
+        
+        console.log('admin-sections.js: Functions registered globally');
+    }
+})();
 

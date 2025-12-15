@@ -6,7 +6,8 @@
 class TimeManagement {
     constructor() {
         this.currentTeacherId = null;
-        this.teacherSchedules = [];
+        this.teacherSchedules = []; // Selected teacher's schedules
+        this.allTeachersSchedules = {}; // All teachers' schedules by day (for conflict prevention)
         this.availableSlots = {};
         this.conflictCheckTimeout = null;
         this.init();
@@ -27,7 +28,10 @@ class TimeManagement {
         // Day selection change
         const daySelect = document.getElementById('day_of_week');
         if (daySelect) {
-            daySelect.addEventListener('change', () => this.updateTimeOptions());
+            daySelect.addEventListener('change', () => {
+                this.loadAllTeachersSchedulesForDay(daySelect.value);
+                this.updateTimeOptions();
+            });
         }
 
         // Start time selection/input change
@@ -105,7 +109,8 @@ class TimeManagement {
         const container = document.getElementById('teacherScheduleContainer');
         const display = document.getElementById('teacherScheduleDisplay');
         
-        if (!teacherId) {
+        // Treat empty string or "0" as "no valid teacher selected"
+        if (!teacherId || teacherId === '0') {
             container.style.display = 'none';
             this.clearTimeSelections();
             return;
@@ -120,8 +125,20 @@ class TimeManagement {
             const data = await response.json();
             
             if (data.success) {
-                this.teacherSchedules = data.schedules;
-                this.displayTeacherSchedule(data.schedules);
+                // Deduplicate schedules before storing (remove exact duplicates)
+                const uniqueSchedules = [];
+                const seen = new Set();
+                
+                data.schedules.forEach(schedule => {
+                    const key = `${schedule.day}-${schedule.start}-${schedule.end}-${schedule.class_id || 'null'}`;
+                    if (!seen.has(key)) {
+                        seen.add(key);
+                        uniqueSchedules.push(schedule);
+                    }
+                });
+                
+                this.teacherSchedules = uniqueSchedules;
+                this.displayTeacherSchedule(uniqueSchedules);
                 this.updateTimeOptions();
             } else {
                 display.innerHTML = this.getErrorHTML('Error loading teacher schedule');
@@ -157,7 +174,19 @@ class TimeManagement {
 
     groupSchedulesByDay(schedules) {
         const scheduleByDay = {};
+        // Track seen schedules to prevent duplicates (same day, start, end, class_id)
+        const seen = new Set();
+        
         schedules.forEach(schedule => {
+            // Create unique key: day + start + end + class_id
+            const key = `${schedule.day}-${schedule.start}-${schedule.end}-${schedule.class_id || 'null'}`;
+            
+            // Skip if we've already seen this exact schedule
+            if (seen.has(key)) {
+                return;
+            }
+            seen.add(key);
+            
             if (!scheduleByDay[schedule.day]) {
                 scheduleByDay[schedule.day] = [];
             }
@@ -189,7 +218,7 @@ class TimeManagement {
         return html;
     }
 
-    updateTimeOptions() {
+    async updateTimeOptions() {
         const daySelect = document.getElementById('day_of_week');
         const startTimeSelect = document.getElementById('start_time');
         const endTimeSelect = document.getElementById('end_time');
@@ -204,7 +233,10 @@ class TimeManagement {
             return;
         }
         
-        // Get occupied times for the selected day
+        // Load all teachers' schedules for this day (if not already loaded)
+        await this.loadAllTeachersSchedulesForDay(selectedDay);
+        
+        // Get occupied times for the selected day (from all teachers)
         const occupiedTimes = this.getOccupiedTimesForDay(selectedDay);
         
         // Populate start time options
@@ -215,25 +247,110 @@ class TimeManagement {
             option.textContent = slot.display;
             option.disabled = isOccupied;
             if (isOccupied) {
+                // Find which teacher(s) have this slot occupied
+                const occupiers = occupiedTimes.filter(occ => {
+                    const slotMinutes = this.timeToMinutes(slot.value);
+                    const occStart = this.timeToMinutes(occ.start);
+                    const occEnd = this.timeToMinutes(occ.end);
+                    return slotMinutes >= occStart && slotMinutes < occEnd;
+                });
+                
+                if (occupiers.length > 0) {
+                    const teacherNames = occupiers
+                        .map(occ => occ.teacher_name || `Teacher ID ${occ.teacher_id}`)
+                        .filter((name, idx, arr) => arr.indexOf(name) === idx) // unique
+                        .join(', ');
+                    option.textContent += ` (Occupied by ${teacherNames})`;
+                } else {
                 option.textContent += ' (Occupied)';
+                }
             }
             startTimeSelect.appendChild(option);
         });
     }
 
+    async loadAllTeachersSchedulesForDay(day) {
+        if (!day) {
+            this.allTeachersSchedules[day] = [];
+            return;
+        }
+
+        // If we already loaded this day's schedules, use cached data
+        if (this.allTeachersSchedules[day]) {
+            return;
+        }
+
+        try {
+            const base = (window.__BASE_PATH__ || '').replace(/\/$/, '');
+            const response = await fetch(`${base}/api/admin/check-all-teachers-schedule.php?day=${encodeURIComponent(day)}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                // Store all occupied schedules for this day
+                this.allTeachersSchedules[day] = data.occupied_schedules || [];
+            } else {
+                this.allTeachersSchedules[day] = [];
+            }
+        } catch (error) {
+            console.error('Error loading all teachers schedules:', error);
+            this.allTeachersSchedules[day] = [];
+        }
+    }
+
     getOccupiedTimesForDay(day) {
-        return this.teacherSchedules
+        // Combine selected teacher's schedules with all teachers' schedules for conflict prevention
+        const selectedTeacherSchedules = this.teacherSchedules
             .filter(schedule => schedule.day === day)
             .map(schedule => ({
                 start: schedule.start,
-                end: schedule.end
+                end: schedule.end,
+                teacher_id: this.currentTeacherId
             }));
+
+        // Get all teachers' schedules for this day (from cache or empty array)
+        const allTeachersSchedules = (this.allTeachersSchedules[day] || []).map(schedule => ({
+            start: schedule.start_time,
+            end: schedule.end_time,
+            teacher_id: schedule.teacher_id,
+            teacher_name: schedule.teacher_name
+        }));
+
+        // Combine and deduplicate
+        const allOccupied = [...selectedTeacherSchedules, ...allTeachersSchedules];
+        const uniqueOccupied = [];
+        const seen = new Set();
+
+        allOccupied.forEach(occupied => {
+            const key = `${occupied.start}-${occupied.end}`;
+            if (!seen.has(key)) {
+                seen.add(key);
+                uniqueOccupied.push(occupied);
+            }
+        });
+
+        return uniqueOccupied;
     }
 
     isTimeOccupied(time, occupiedTimes) {
+        // Check if the time slot overlaps with any occupied time range
+        // A time slot is occupied if it falls within or overlaps an occupied range
         return occupiedTimes.some(occupied => {
-            return time >= occupied.start && time < occupied.end;
+            const timeValue = this.timeToMinutes(time);
+            const occupiedStart = this.timeToMinutes(occupied.start);
+            const occupiedEnd = this.timeToMinutes(occupied.end);
+            
+            // Check if time falls within the occupied range
+            // Also check for partial overlaps (time slot starts before occupied ends, or ends after occupied starts)
+            return timeValue >= occupiedStart && timeValue < occupiedEnd;
         });
+    }
+
+    timeToMinutes(timeString) {
+        // Convert "HH:MM:SS" or "HH:MM" to minutes since midnight
+        const parts = timeString.split(':');
+        const hours = parseInt(parts[0], 10);
+        const minutes = parseInt(parts[1] || 0, 10);
+        return hours * 60 + minutes;
     }
 
     onStartTimeChange() {
@@ -286,8 +403,14 @@ class TimeManagement {
 
     populateEndTimeOptions(startTime) {
         const endTimeSelect = document.getElementById('end_time');
+        const daySelect = document.getElementById('day_of_week');
+        const selectedDay = daySelect.value;
+        
         const startHour = parseInt(startTime.split(':')[0]);
         const startMinute = parseInt(startTime.split(':')[1]);
+        
+        // Get occupied times for the selected day to check end time conflicts
+        const occupiedTimes = this.getOccupiedTimesForDay(selectedDay);
         
         // Only show times after the start time
         this.timeSlots.forEach(slot => {
@@ -295,11 +418,35 @@ class TimeManagement {
             const slotMinute = parseInt(slot.value.split(':')[1]);
             
             if (slotHour > startHour || (slotHour === startHour && slotMinute > startMinute)) {
+                // Check if this end time would create a conflict
+                // A conflict occurs if the time range (startTime to slot.value) overlaps with any occupied time
+                const wouldConflict = this.wouldTimeRangeConflict(startTime, slot.value, occupiedTimes);
+                
                 const option = document.createElement('option');
                 option.value = slot.value;
                 option.textContent = slot.display;
+                option.disabled = wouldConflict;
+                
+                if (wouldConflict) {
+                    option.textContent += ' (Occupied)';
+                }
+                
                 endTimeSelect.appendChild(option);
             }
+        });
+    }
+
+    wouldTimeRangeConflict(startTime, endTime, occupiedTimes) {
+        // Check if the time range from startTime to endTime conflicts with any occupied time
+        const startMinutes = this.timeToMinutes(startTime);
+        const endMinutes = this.timeToMinutes(endTime);
+        
+        return occupiedTimes.some(occupied => {
+            const occupiedStart = this.timeToMinutes(occupied.start);
+            const occupiedEnd = this.timeToMinutes(occupied.end);
+            
+            // Overlap occurs if: new start < existing end AND new end > existing start
+            return startMinutes < occupiedEnd && endMinutes > occupiedStart;
         });
     }
 
@@ -406,6 +553,34 @@ class TimeManagement {
             return;
         }
 
+        // First, check if this time slot is already occupied by ANY teacher (client-side check)
+        await this.loadAllTeachersSchedulesForDay(day);
+        const occupiedTimes = this.getOccupiedTimesForDay(day);
+        const startWithSeconds = this.ensureSeconds(startTime);
+        const endWithSeconds = this.ensureSeconds(endTime);
+        
+        // Check for conflicts with all teachers
+        const conflicts = occupiedTimes.filter(occ => {
+            const occStart = this.timeToMinutes(occ.start);
+            const occEnd = this.timeToMinutes(occ.end);
+            const newStart = this.timeToMinutes(startWithSeconds);
+            const newEnd = this.timeToMinutes(endWithSeconds);
+            
+            // Overlap: new start < existing end AND new end > existing start
+            return newStart < occEnd && newEnd > occStart;
+        });
+
+        if (conflicts.length > 0) {
+            const conflictTeachers = conflicts
+                .map(occ => occ.teacher_name || `Teacher ID ${occ.teacher_id}`)
+                .filter((name, idx, arr) => arr.indexOf(name) === idx) // unique
+                .join(', ');
+            
+            this.showAlert(`⚠️ Schedule conflict: This time slot is already occupied by ${conflictTeachers}. Please choose a different time.`, 'danger');
+            this.disableSubmitButton();
+            return;
+        }
+
         const payload = {
             teacherId: isNaN(Number(teacherId)) ? teacherId : Number(teacherId),
             day,
@@ -445,9 +620,49 @@ class TimeManagement {
 
             if (data.status === 'available') {
                 this.showAlert('✅ Time slot is available!', 'success');
+
+                // Optimistically add this new slot into the in-memory teacher schedule
+                // so the "Teacher's Current Schedule" panel and time options reflect it
+                const startWithSeconds = this.ensureSeconds(startTime);
+                const endWithSeconds = this.ensureSeconds(endTime);
+
+                // Remove any existing temporary entry with the same day/start/end to avoid duplicates
+                this.teacherSchedules = this.teacherSchedules.filter(s => {
+                    return !(s.day === day && s.start === startWithSeconds && s.end === endWithSeconds && s._temp === true);
+                });
+
+                // Get subject name for display (fallback to generic label)
+                let subjectName = 'New Class';
+                const subjectSelect = document.getElementById('subject_id');
+                if (subjectSelect && subjectSelect.options && subjectSelect.selectedIndex > 0) {
+                    const opt = subjectSelect.options[subjectSelect.selectedIndex];
+                    subjectName = opt.getAttribute('data-subject-name') || opt.textContent.trim() || subjectName;
+                }
+
+                const tempSchedule = {
+                    id: 'temp-' + Date.now(),
+                    day: day,
+                    start: startWithSeconds,
+                    end: endWithSeconds,
+                    start_ampm: this.formatTo12Hour(startWithSeconds),
+                    end_ampm: this.formatTo12Hour(endWithSeconds),
+                    subject_name: subjectName,
+                    class_schedule: null,
+                    _temp: true // mark as temporary (not yet saved in DB)
+                };
+
+                this.teacherSchedules.push(tempSchedule);
+                this.displayTeacherSchedule(this.teacherSchedules);
+                // Clear cache for this day so it reloads with the new schedule
+                delete this.allTeachersSchedules[day];
+                await this.updateTimeOptions();
+
                 this.enableSubmitButton();
             } else if (data.status === 'conflict') {
-                this.showAlert('⚠️ Schedule conflict detected. Please choose another time.', 'danger');
+                const conflictDetails = data.conflicts && data.conflicts.length > 0
+                    ? ` Conflict with: ${data.conflicts.map(c => c.subject_name || 'existing class').join(', ')}.`
+                    : '';
+                this.showAlert(`⚠️ Schedule conflict detected.${conflictDetails} Please choose another time.`, 'danger');
                 this.disableSubmitButton();
             } else {
                 const message = data.message || 'Unexpected response from server.';

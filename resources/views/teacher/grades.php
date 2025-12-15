@@ -14,14 +14,14 @@ $students = $students ?? [];
 $sectionOptions = array_map(static function ($section) {
     return [
         'id' => $section['section_id'],
-        'label' => $section['section_name'],
+        'label' => $section['section_name'] ?? '',
     ];
 }, $sections);
 
 $subjectOptions = array_map(static function ($subject) {
     return [
         'id' => $subject['id'],
-        'label' => $subject['name'],
+        'label' => $subject['name'] ?? '',
     ];
 }, $subjects);
 ?>
@@ -78,7 +78,7 @@ $subjectOptions = array_map(static function ($subject) {
                     <option value="<?= (int)$student['id'] ?>" <?= ((int)($filters['student_id'] ?? 0) === (int)$student['id']) ? 'selected' : '' ?>>
                         <?= htmlspecialchars($student['name'] ?? '') ?> 
                         <?php if (!empty($student['lrn'])): ?>
-                            (<?= htmlspecialchars($student['lrn']) ?>)
+                            (<?= htmlspecialchars($student['lrn'] ?? '') ?>)
                         <?php endif; ?>
                         <?php if (!empty($student['section_name'])): ?>
                             - <?= htmlspecialchars($student['section_name']) ?>
@@ -96,7 +96,7 @@ $subjectOptions = array_map(static function ($subject) {
                 <option value="">All sections</option>
                 <?php foreach ($sectionOptions as $option): ?>
                     <option value="<?= (int)$option['id'] ?>" <?= ((int)$filters['section_id'] === (int)$option['id']) ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($option['label']) ?>
+                        <?= htmlspecialchars($option['label'] ?? '') ?>
                     </option>
                 <?php endforeach; ?>
             </select>
@@ -107,7 +107,7 @@ $subjectOptions = array_map(static function ($subject) {
                 <option value="">All subjects</option>
                 <?php foreach ($subjectOptions as $option): ?>
                     <option value="<?= (int)$option['id'] ?>" <?= ((int)$filters['subject_id'] === (int)$option['id']) ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($option['label']) ?>
+                        <?= htmlspecialchars($option['label'] ?? '') ?>
                     </option>
                 <?php endforeach; ?>
             </select>
@@ -342,7 +342,7 @@ $subjectOptions = array_map(static function ($subject) {
                                     <option value="<?= (int)$student['id'] ?>" data-section-id="<?= (int)($student['section_id'] ?? 0) ?>" data-section="<?= htmlspecialchars($student['section_name'] ?? '') ?>">
                                         <?= htmlspecialchars($student['name'] ?? '') ?> - <?= htmlspecialchars($student['section_name'] ?? '') ?>
                                         <?php if (!empty($student['lrn'])): ?>
-                                            (LRN: <?= htmlspecialchars($student['lrn']) ?>)
+                                            (LRN: <?= htmlspecialchars($student['lrn'] ?? '') ?>)
                                         <?php endif; ?>
                                     </option>
                                 <?php 
@@ -559,11 +559,17 @@ document.addEventListener('DOMContentLoaded', function() {
             submitBtn.innerHTML = originalText;
 
             if (result.success) {
-                // Show success message
-                if (typeof showNotification === 'function') {
-                    showNotification('Grade added successfully!', { type: 'success' });
+                // Check for AI anomaly detection warnings
+                if (result.anomaly_detection && result.anomaly_detection.severity !== 'none') {
+                    // Show anomaly warning modal
+                    showAnomalyWarning(result.anomaly_detection);
                 } else {
-                    alert('Grade added successfully!');
+                    // Show success message
+                    if (typeof showNotification === 'function') {
+                        showNotification('Grade added successfully!', { type: 'success' });
+                    } else {
+                        alert('Grade added successfully!');
+                    }
                 }
                 
                 // Close modal
@@ -576,7 +582,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Reload page to show new grade
                 setTimeout(() => {
                     window.location.reload();
-                }, 1000);
+                }, result.anomaly_detection ? 3000 : 1000); // Give more time if showing warning
             } else {
                 throw new Error(result.message || 'Failed to add grade');
             }
@@ -597,6 +603,73 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
+    
+    // Function to show AI anomaly detection warning
+    function showAnomalyWarning(anomalyData) {
+        const severity = anomalyData.severity || 'medium';
+        const severityClass = severity === 'high' ? 'danger' : 'warning';
+        const severityIcon = severity === 'high' ? '⚠️' : '⚡';
+        
+        let warningHtml = `
+            <div class="alert alert-${severityClass} border-start border-4 mb-3">
+                <div class="d-flex align-items-start">
+                    <div class="me-3">
+                        <div class="h4 mb-0">${severityIcon}</div>
+                    </div>
+                    <div class="flex-grow-1">
+                        <h5 class="alert-heading">AI Anomaly Detection Alert</h5>
+                        <p class="mb-2"><strong>${anomalyData.message || 'Unusual patterns detected in this grade.'}</strong></p>
+        `;
+        
+        if (anomalyData.anomalies && anomalyData.anomalies.length > 0) {
+            warningHtml += '<div class="mb-2"><strong>Anomalies Detected:</strong><ul class="mb-0 small">';
+            anomalyData.anomalies.forEach(anomaly => {
+                warningHtml += `<li>${anomaly.description}</li>`;
+            });
+            warningHtml += '</ul></div>';
+        }
+        
+        if (anomalyData.warnings && anomalyData.warnings.length > 0) {
+            warningHtml += '<div class="mb-2"><strong>Warnings:</strong><ul class="mb-0 small">';
+            anomalyData.warnings.forEach(warning => {
+                warningHtml += `<li>${warning.description}</li>`;
+            });
+            warningHtml += '</ul></div>';
+        }
+        
+        if (anomalyData.suggestions && anomalyData.suggestions.length > 0) {
+            warningHtml += '<div class="mb-2"><strong>Suggestions:</strong><ul class="mb-0 small">';
+            anomalyData.suggestions.forEach(suggestion => {
+                warningHtml += `<li>${suggestion}</li>`;
+            });
+            warningHtml += '</ul></div>';
+        }
+        
+        warningHtml += `
+                        <div class="mt-3">
+                            <button class="btn btn-sm btn-${severityClass}" onclick="this.closest('.alert').remove()">
+                                Acknowledge & Continue
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Show notification with warning
+        if (typeof showNotification === 'function') {
+            showNotification('Grade added, but AI detected unusual patterns. Please review.', { 
+                type: severity === 'high' ? 'error' : 'warning',
+                duration: 5000
+            });
+        }
+        
+        // Insert warning at top of page
+        const container = document.querySelector('.container-fluid, .container, main') || document.body;
+        const warningDiv = document.createElement('div');
+        warningDiv.innerHTML = warningHtml;
+        container.insertBefore(warningDiv.firstElementChild, container.firstChild);
+    }
 });
 </script>
 

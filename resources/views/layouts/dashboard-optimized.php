@@ -178,8 +178,9 @@
 
       <!-- Sidebar Footer -->
       <div class="sidebar-footer">
-        <form method="post" action="<?= \Helpers\Url::to('/logout') ?>">
-          <button class="sidebar-logout" type="submit">
+        <form method="post" action="<?= \Helpers\Url::to('/logout') ?>" id="logout-form" class="logout-form">
+          <input type="hidden" name="csrf_token" value="<?= \Helpers\Csrf::generateToken() ?>">
+          <button class="sidebar-logout" type="button" id="logout-btn">
             <svg width="16" height="16" fill="currentColor">
               <use href="#icon-logout"></use>
             </svg>
@@ -196,7 +197,29 @@
             <a href="<?= $dashboardUrl ?? '#' ?>" class="btn btn-sm btn-outline-secondary">← Back to Dashboard</a>
           <?php endif; ?>
         </div>
-        <div>
+        <div class="d-flex align-items-center gap-2">
+          <!-- Notification Bell -->
+          <div id="notification-bell" class="notification-bell-container">
+            <button class="btn btn-outline-secondary notification-bell-btn" id="notification-bell-btn" type="button" aria-label="Notifications" title="Notifications">
+              <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
+              </svg>
+              <span class="notification-badge" id="notification-badge">0</span>
+            </button>
+            <div class="notification-dropdown" id="notification-dropdown">
+              <div class="notification-dropdown-header">
+                <h6>Notifications</h6>
+                <button class="btn-link btn-sm" id="mark-all-read-btn">Mark all as read</button>
+              </div>
+              <div class="notification-dropdown-body" id="notification-list">
+                <div class="notification-loading">Loading...</div>
+              </div>
+              <div class="notification-dropdown-footer">
+                <a href="#" class="btn-link btn-sm" id="view-all-notifications">View all notifications</a>
+              </div>
+            </div>
+          </div>
+          <!-- Theme Toggle -->
           <button class="btn btn-outline-secondary theme-toggle" type="button" data-theme-toggle title="Toggle theme" aria-label="Toggle between light and dark theme">
             <svg class="icon" aria-hidden="true">
               <use data-theme-icon href="#icon-sun"></use>
@@ -205,6 +228,8 @@
         </div>
       </nav>
       <main class="content-area" id="main-content" role="main">
+        <!-- Flash Messages - Converted to Toast Notifications via JavaScript below -->
+        
         <?= $content ?? '' ?>
       </main>
     </div>
@@ -219,6 +244,47 @@
         console.log('🚀 Dashboard load time:', perfData.loadEventEnd - perfData.fetchStart, 'ms');
       }
     });
+  </script>
+  <!-- Toast Notifications (Bootstrap 5) -->
+  <script src="<?= \Helpers\Url::asset('assets/toast-notifications.js') ?>"></script>
+  <!-- SweetAlert2 for Confirmations -->
+  <script src="<?= \Helpers\Url::asset('assets/sweetalert-integration.js') ?>"></script>
+  <!-- Notification Center -->
+  <script src="<?= \Helpers\Url::asset('assets/notification-center.js') ?>"></script>
+  <!-- Logout Confirmation -->
+  <script src="<?= \Helpers\Url::asset('assets/logout-confirmation.js') ?>"></script>
+  
+  <!-- Flash Messages to Toast -->
+  <script>
+    (function() {
+      // Convert PHP flash messages to Bootstrap toast notifications
+      <?php 
+      // Store notifications once to avoid clearing them before JavaScript conversion
+      $flashNotifications = \Helpers\Notification::has() ? \Helpers\Notification::getFlashed() : [];
+      if (!empty($flashNotifications)): 
+      ?>
+      const flashMessages = <?= json_encode($flashNotifications) ?>;
+      
+      if (window.toastNotifications && flashMessages) {
+        // Wait for DOM and Bootstrap to be ready
+        document.addEventListener('DOMContentLoaded', function() {
+          setTimeout(function() {
+            Object.keys(flashMessages).forEach(function(type) {
+              const messages = Array.isArray(flashMessages[type]) ? flashMessages[type] : [flashMessages[type]];
+              messages.forEach(function(message) {
+                if (message && message.trim()) {
+                  // Use Bootstrap toasts
+                  window.toastNotifications[type](message, {
+                    duration: 5000
+                  });
+                }
+              });
+            });
+          }, 300); // Small delay to ensure Bootstrap is initialized
+        });
+      }
+      <?php endif; ?>
+    })();
   </script>
 </body>
 

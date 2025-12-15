@@ -229,6 +229,53 @@ class StudentController extends Controller
                 $classes = $stmt->fetchAll();
             }
 
+            // Get AI performance analysis
+            $aiAnalysis = null;
+            $studentAlerts = [];
+            try {
+                $analyzer = new \Services\PerformanceAnalyzer($pdo);
+                $academicYear = (new \Models\GradeModel())->getCurrentAcademicYear();
+                $quarter = $this->getCurrentQuarter();
+                
+                $aiAnalysis = $analyzer->analyzeStudent(
+                    $studentId,
+                    (int)$profile['section_id'],
+                    $quarter,
+                    $academicYear
+                );
+                
+                // Get alerts for this student
+                $alertStmt = $pdo->prepare("
+                    SELECT 
+                        pa.id,
+                        pa.alert_type,
+                        pa.title,
+                        pa.description,
+                        pa.severity,
+                        pa.status,
+                        pa.created_at,
+                        sub.name as subject_name
+                    FROM performance_alerts pa
+                    LEFT JOIN subjects sub ON pa.subject_id = sub.id
+                    WHERE pa.student_id = ? AND pa.status = 'active'
+                    ORDER BY pa.created_at DESC
+                    LIMIT 5
+                ");
+                $alertStmt->execute([$studentId]);
+                $studentAlerts = $alertStmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+            } catch (\Exception $e) {
+                error_log("Student dashboard AI analysis error: " . $e->getMessage());
+            }
+            
+            // Get chart data for grade trends
+            $gradeTrendData = $this->getGradeTrendData($pdo, $studentId, $academicYear);
+            
+            // Get chart data for attendance trends
+            $attendanceTrendData = $this->getAttendanceTrendData($pdo, $studentId, (int)$profile['section_id'], $academicYear);
+            
+            // Get chart data for subject performance
+            $subjectPerformanceData = $this->getSubjectPerformanceData($pdo, $studentId, $academicYear, $quarter);
+
             $this->view->render('student/dashboard', [
                 'title' => 'Student Dashboard',
                 'user' => $user,
@@ -240,6 +287,13 @@ class StudentController extends Controller
                 'recent_grades' => $recentGrades,
                 'upcoming_assignments' => [], // TODO: Implement assignments
                 'classes' => $classes,
+                'ai_analysis' => $aiAnalysis,
+                'alerts' => $studentAlerts,
+                'chart_data' => [
+                    'grade_trends' => $gradeTrendData,
+                    'attendance_trends' => $attendanceTrendData,
+                    'subject_performance' => $subjectPerformanceData,
+                ],
             ], 'layouts/dashboard');
         } catch (\Exception $e) {
             \Helpers\ErrorHandler::internalServerError('Failed to load dashboard: ' . $e->getMessage());
@@ -634,6 +688,33 @@ class StudentController extends Controller
             $quarter = (int)($_GET['quarter'] ?? 1);
             $dateFrom = $_GET['date_from'] ?? date('Y-m-01');
             $dateTo = $_GET['date_to'] ?? date('Y-m-t');
+            $subjectId = !empty($_GET['subject']) ? (int)$_GET['subject'] : null;
+
+            // Fetch subjects for the filter dropdown
+            $subjects = [];
+            if ($hasSection && !empty($student['section_id'])) {
+                $stmt = $pdo->prepare("
+                    SELECT DISTINCT
+                        subj.id,
+                        subj.name,
+                        subj.code
+                    FROM classes c
+                    JOIN subjects subj ON c.subject_id = subj.id
+                    WHERE c.section_id = ? AND c.is_active = 1
+                    ORDER BY subj.name
+                ");
+                $stmt->execute([$student['section_id']]);
+                $subjects = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            }
+
+            // Build WHERE conditions for queries
+            $whereConditions = "a.student_id = ? AND a.attendance_date BETWEEN ? AND ?";
+            $params = [$student['id'], $dateFrom, $dateTo];
+            
+            if ($subjectId) {
+                $whereConditions .= " AND a.subject_id = ?";
+                $params[] = $subjectId;
+            }
 
             // Fetch attendance records
             $stmt = $pdo->prepare("
@@ -647,38 +728,58 @@ class StudentController extends Controller
                 FROM attendance a
                 LEFT JOIN subjects subj ON a.subject_id = subj.id
                 LEFT JOIN sections sec ON a.section_id = sec.id
-                WHERE a.student_id = ?
-                    AND a.attendance_date BETWEEN ? AND ?
+                WHERE {$whereConditions}
                 ORDER BY a.attendance_date DESC, subj.name
             ");
-            $stmt->execute([$student['id'], $dateFrom, $dateTo]);
+            $stmt->execute($params);
             $attendanceRecords = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-            // Get summary statistics
+            // Get summary statistics - count by status (must match the same filters)
+            $statsWhereConditions = "student_id = ? AND attendance_date BETWEEN ? AND ?";
+            $statsParams = [$student['id'], $dateFrom, $dateTo];
+            
+            if ($subjectId) {
+                $statsWhereConditions .= " AND subject_id = ?";
+                $statsParams[] = $subjectId;
+            }
+
             $stmt = $pdo->prepare("
                 SELECT 
                     COUNT(*) as total_days,
-                    SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present_days,
-                    SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END) as absent_days,
-                    SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) as late_days
+                    COALESCE(SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END), 0) as present_days,
+                    COALESCE(SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END), 0) as absent_days,
+                    COALESCE(SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END), 0) as late_days,
+                    COALESCE(SUM(CASE WHEN status = 'excused' THEN 1 ELSE 0 END), 0) as excused_days
                 FROM attendance
-                WHERE student_id = ?
-                    AND attendance_date BETWEEN ? AND ?
+                WHERE {$statsWhereConditions}
             ");
-            $stmt->execute([$student['id'], $dateFrom, $dateTo]);
+            $stmt->execute($statsParams);
             $summary = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            // Initialize with defaults if query fails
+            if (!$summary) {
+                $summary = [
+                    'total_days' => 0,
+                    'present_days' => 0,
+                    'absent_days' => 0,
+                    'late_days' => 0,
+                    'excused_days' => 0
+                ];
+            }
 
             // Calculate attendance rate
             $attendanceRate = 0;
-            if ($summary && $summary['total_days'] > 0) {
-                $attendanceRate = round(((int)$summary['present_days'] / (int)$summary['total_days']) * 100, 1);
+            $totalDays = (int)($summary['total_days'] ?? 0);
+            if ($totalDays > 0) {
+                $presentDays = (int)($summary['present_days'] ?? 0);
+                $attendanceRate = round(($presentDays / $totalDays) * 100, 1);
             }
 
             $attendanceStats = [
-                'total_days' => (int)($summary['total_days'] ?? 0),
+                'total_days' => $totalDays,
                 'present' => (int)($summary['present_days'] ?? 0),
                 'late' => (int)($summary['late_days'] ?? 0),
-                'excused' => 0, // Not tracked in current schema
+                'excused' => (int)($summary['excused_days'] ?? 0),
                 'absent' => (int)($summary['absent_days'] ?? 0),
                 'attendance_rate' => $attendanceRate,
             ];
@@ -691,8 +792,10 @@ class StudentController extends Controller
                 'attendanceRecords' => $attendanceRecords,
                 'attendanceStats' => $attendanceStats,
                 'summary' => $summary,
+                'subjects' => $subjects,
                 'filters' => [
                     'quarter' => $quarter,
+                    'subject_id' => $subjectId,
                     'date_from' => $dateFrom,
                     'date_to' => $dateTo,
                 ],
@@ -709,11 +812,83 @@ class StudentController extends Controller
             \Helpers\ErrorHandler::forbidden('You need student privileges to access this page.');
             return;
         }
-        $this->view->render('student/alerts', [
-            'title' => 'My Alerts',
-            'user' => $user,
-            'activeNav' => 'alerts',
-        ], 'layouts/dashboard');
+        
+        try {
+            $config = require BASE_PATH . '/config/config.php';
+            $pdo = \Core\Database::connection($config['database']);
+            
+            // Get student profile
+            $stmt = $pdo->prepare("
+                SELECT s.id, s.section_id, s.user_id
+                FROM students s
+                WHERE s.user_id = ?
+                LIMIT 1
+            ");
+            $stmt->execute([(int)$user['id']]);
+            $student = $stmt->fetch(\PDO::FETCH_ASSOC);
+            
+            if (!$student) {
+                \Helpers\ErrorHandler::notFound('Student profile not found.');
+                return;
+            }
+            
+            $studentId = (int)$student['id'];
+            $sectionId = (int)($student['section_id'] ?? 0);
+            
+            // Get AI performance analysis
+            $aiAnalysis = null;
+            try {
+                $analyzer = new \Services\PerformanceAnalyzer($pdo);
+                $academicYear = (new \Models\GradeModel())->getCurrentAcademicYear();
+                $quarter = $this->getCurrentQuarter();
+                
+                $aiAnalysis = $analyzer->analyzeStudent(
+                    $studentId,
+                    $sectionId,
+                    $quarter,
+                    $academicYear
+                );
+            } catch (\Exception $e) {
+                error_log("Student alerts AI analysis error: " . $e->getMessage());
+            }
+            
+            // Get all alerts for this student
+            $stmt = $pdo->prepare("
+                SELECT 
+                    pa.id,
+                    pa.alert_type,
+                    pa.title,
+                    pa.description,
+                    pa.severity,
+                    pa.status,
+                    pa.created_at,
+                    pa.subject_id,
+                    sub.name as subject_name
+                FROM performance_alerts pa
+                LEFT JOIN subjects sub ON pa.subject_id = sub.id
+                WHERE pa.student_id = ? AND pa.status = 'active'
+                ORDER BY 
+                    CASE pa.severity
+                        WHEN 'high' THEN 1
+                        WHEN 'medium' THEN 2
+                        WHEN 'low' THEN 3
+                    END,
+                    pa.created_at DESC
+            ");
+            $stmt->execute([$studentId]);
+            $alerts = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+            
+            $this->view->render('student/alerts', [
+                'title' => 'My Alerts & Performance Insights',
+                'user' => $user,
+                'activeNav' => 'alerts',
+                'showBack' => true,
+                'alerts' => $alerts,
+                'ai_analysis' => $aiAnalysis,
+            ], 'layouts/dashboard');
+        } catch (\Exception $e) {
+            \Helpers\ErrorHandler::internalServerError('Failed to load alerts: ' . $e->getMessage());
+        }
     }
 
     public function schedule(): void
@@ -1123,17 +1298,184 @@ class StudentController extends Controller
         }
     }
 
-    public function resources(): void
+    private function getCurrentQuarter(): int
     {
-        $user = Session::get('user');
-        if (!$user || ($user['role'] ?? '') !== 'student') {
-            \Helpers\ErrorHandler::forbidden('You need student privileges to access this page.');
-            return;
+        $month = (int)date('n');
+        
+        // Quarter 1: June-August (months 6-8)
+        // Quarter 2: September-November (months 9-11)
+        // Quarter 3: December-February (months 12, 1, 2)
+        // Quarter 4: March-May (months 3-5)
+        
+        if ($month >= 6 && $month <= 8) {
+            return 1;
+        } elseif ($month >= 9 && $month <= 11) {
+            return 2;
+        } elseif ($month === 12 || $month <= 2) {
+            return 3;
+        } else {
+            return 4;
         }
-        $this->view->render('student/resources', [
-            'title' => 'Learning Resources',
-            'user' => $user,
-            'activeNav' => 'resources',
-        ], 'layouts/dashboard');
+    }
+    
+    /**
+     * Get grade trend data for charts
+     */
+    private function getGradeTrendData($pdo, int $studentId, string $academicYear): array
+    {
+        try {
+            // Get quarterly grades for all quarters
+            $stmt = $pdo->prepare("
+                SELECT 
+                    g.quarter,
+                    AVG(ROUND((g.grade_value / NULLIF(g.max_score, 0)) * 100, 2)) as avg_percentage,
+                    COUNT(DISTINCT g.subject_id) as subject_count
+                FROM grades g
+                WHERE g.student_id = ? 
+                  AND g.academic_year = ?
+                GROUP BY g.quarter
+                ORDER BY g.quarter
+            ");
+            $stmt->execute([$studentId, $academicYear]);
+            $quarterlyData = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            
+            // Format for chart
+            $labels = [];
+            $data = [];
+            $subjectCounts = [];
+            
+            for ($q = 1; $q <= 4; $q++) {
+                $labels[] = "Q{$q}";
+                $quarterData = array_filter($quarterlyData, fn($d) => (int)$d['quarter'] === $q);
+                if (!empty($quarterData)) {
+                    $quarter = reset($quarterData);
+                    $data[] = round((float)$quarter['avg_percentage'], 2);
+                    $subjectCounts[] = (int)$quarter['subject_count'];
+                } else {
+                    $data[] = null;
+                    $subjectCounts[] = 0;
+                }
+            }
+            
+            return [
+                'labels' => $labels,
+                'data' => $data,
+                'subject_counts' => $subjectCounts,
+            ];
+        } catch (\Exception $e) {
+            error_log("getGradeTrendData error: " . $e->getMessage());
+            return ['labels' => ['Q1', 'Q2', 'Q3', 'Q4'], 'data' => [], 'subject_counts' => []];
+        }
+    }
+    
+    /**
+     * Get attendance trend data for charts
+     */
+    private function getAttendanceTrendData($pdo, int $studentId, int $sectionId, string $academicYear): array
+    {
+        try {
+            // Extract year from academic year
+            $yearParts = explode('-', $academicYear);
+            $startYear = (int)($yearParts[0] ?? date('Y'));
+            
+            // Get monthly attendance data
+            $stmt = $pdo->prepare("
+                SELECT 
+                    DATE_FORMAT(attendance_date, '%Y-%m') as month,
+                    COUNT(*) as total_days,
+                    SUM(CASE WHEN status IN ('present', 'late', 'excused') THEN 1 ELSE 0 END) as present_days,
+                    SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END) as absent_days
+                FROM attendance
+                WHERE student_id = ?
+                  AND section_id = ?
+                  AND YEAR(attendance_date) BETWEEN ? AND ?
+                GROUP BY DATE_FORMAT(attendance_date, '%Y-%m')
+                ORDER BY month
+                LIMIT 12
+            ");
+            $stmt->execute([$studentId, $sectionId, $startYear, $startYear + 1]);
+            $monthlyData = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            
+            $labels = [];
+            $attendanceRates = [];
+            $presentData = [];
+            $absentData = [];
+            
+            foreach ($monthlyData as $month) {
+                $monthName = date('M Y', strtotime($month['month'] . '-01'));
+                $labels[] = $monthName;
+                
+                $total = (int)$month['total_days'];
+                $present = (int)$month['present_days'];
+                $absent = (int)$month['absent_days'];
+                
+                $rate = $total > 0 ? round(($present / $total) * 100, 1) : 100;
+                $attendanceRates[] = $rate;
+                $presentData[] = $present;
+                $absentData[] = $absent;
+            }
+            
+            return [
+                'labels' => $labels,
+                'attendance_rates' => $attendanceRates,
+                'present_days' => $presentData,
+                'absent_days' => $absentData,
+            ];
+        } catch (\Exception $e) {
+            error_log("getAttendanceTrendData error: " . $e->getMessage());
+            return ['labels' => [], 'attendance_rates' => [], 'present_days' => [], 'absent_days' => []];
+        }
+    }
+    
+    /**
+     * Get subject performance data for charts
+     */
+    private function getSubjectPerformanceData($pdo, int $studentId, string $academicYear, int $quarter): array
+    {
+        try {
+            $stmt = $pdo->prepare("
+                SELECT 
+                    s.name as subject_name,
+                    AVG(ROUND((g.grade_value / NULLIF(g.max_score, 0)) * 100, 2)) as avg_grade
+                FROM grades g
+                JOIN subjects s ON g.subject_id = s.id
+                WHERE g.student_id = ?
+                  AND g.academic_year = ?
+                  AND g.quarter = ?
+                GROUP BY g.subject_id, s.name
+                ORDER BY avg_grade ASC
+                LIMIT 10
+            ");
+            $stmt->execute([$studentId, $academicYear, $quarter]);
+            $subjectData = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            
+            $labels = [];
+            $data = [];
+            $colors = [];
+            
+            foreach ($subjectData as $subject) {
+                $labels[] = $subject['subject_name'];
+                $grade = round((float)$subject['avg_grade'], 1);
+                $data[] = $grade;
+                
+                // Color based on grade
+                if ($grade >= 75) {
+                    $colors[] = 'rgba(25, 135, 84, 0.8)'; // Green
+                } elseif ($grade >= 70) {
+                    $colors[] = 'rgba(255, 193, 7, 0.8)'; // Yellow
+                } else {
+                    $colors[] = 'rgba(220, 53, 69, 0.8)'; // Red
+                }
+            }
+            
+            return [
+                'labels' => $labels,
+                'data' => $data,
+                'colors' => $colors,
+            ];
+        } catch (\Exception $e) {
+            error_log("getSubjectPerformanceData error: " . $e->getMessage());
+            return ['labels' => [], 'data' => [], 'colors' => []];
+        }
     }
 }

@@ -69,11 +69,31 @@ try {
         $endTime = $_POST['end_time'] ?? $_GET['end_time'] ?? null;
     }
     
-    // Validate required parameters
-    if (!$teacherId || !$day || !$startTime || !$endTime) {
+    // Validate required parameters (treat numeric 0 as valid, only null/empty as missing)
+    $missing = [];
+    if ($teacherId === null || $teacherId === '') {
+        $missing[] = 'teacher_id';
+    }
+    if ($day === null || $day === '') {
+        $missing[] = 'day';
+    }
+    if ($startTime === null || $startTime === '') {
+        $missing[] = 'start_time';
+    }
+    if ($endTime === null || $endTime === '') {
+        $missing[] = 'end_time';
+    }
+
+    if (!empty($missing)) {
         returnJson([
             'status' => 'error',
-            'message' => 'Missing required parameters: teacher_id, day, start_time, end_time'
+            'message' => 'Missing required parameters: ' . implode(', ', $missing),
+            'received' => [
+                'teacherId' => $teacherId,
+                'day' => $day,
+                'startTime' => $startTime,
+                'endTime' => $endTime,
+            ],
         ], 400);
     }
 
@@ -92,15 +112,14 @@ try {
         ], 400);
     }
 
-    // Check for conflicts
+    // Check for conflicts (exact duplicates and overlapping times)
     $stmt = $pdo->prepare("
-        SELECT 
+        SELECT DISTINCT
             ts.id,
             ts.day_of_week,
             ts.start_time,
             ts.end_time,
             ts.class_id,
-            c.id as class_id,
             sec.name as section_name,
             sub.name as subject_name,
             c.schedule as class_schedule
@@ -110,11 +129,18 @@ try {
         LEFT JOIN subjects sub ON c.subject_id = sub.id
         WHERE ts.teacher_id = ? 
         AND ts.day_of_week = ?
-        AND (ts.start_time < ? AND ts.end_time > ?)
+        AND (
+            -- Exact duplicate: same day, same start and end time
+            (ts.start_time = ? AND ts.end_time = ?)
+            OR
+            -- Overlapping: new start < existing end AND new end > existing start
+            (ts.start_time < ? AND ts.end_time > ?)
+        )
         ORDER BY ts.start_time
     ");
     
-    $stmt->execute([$teacherId, $day, $endTime24, $startTime24]);
+    // Parameters: teacherId, day, startTime24 (for exact), endTime24 (for exact), endTime24 (for overlap), startTime24 (for overlap)
+    $stmt->execute([$teacherId, $day, $startTime24, $endTime24, $endTime24, $startTime24]);
     $conflicts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     // Format conflicts with AM/PM
@@ -177,18 +203,22 @@ try {
 
 function convertTo24Hour($timeString) {
     // Handle various time formats
-    $timeString = trim($timeString);
-    
-    // If already in 24-hour format (HH:MM:SS or HH:MM)
+    $timeString = trim((string)$timeString);
+
+    // If already in 24-hour format (HH:MM:SS or HH:MM), normalize to HH:MM:SS
     if (preg_match('/^\d{1,2}:\d{2}(:\d{2})?$/', $timeString)) {
+        // If it's HH:MM, append seconds for consistency
+        if (strlen($timeString) === 5) {
+            return $timeString . ':00';
+        }
         return $timeString;
     }
-    
-    // Try to parse AM/PM format
+
+    // Try to parse AM/PM or other common formats
     $timestamp = strtotime($timeString);
     if ($timestamp === false) {
         return null;
     }
-    
+
     return date('H:i:s', $timestamp);
 }

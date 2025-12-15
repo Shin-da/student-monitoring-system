@@ -11,6 +11,7 @@ spl_autoload_register(function (string $class): void {
         'Controllers' => APP_PATH . '/Controllers',
         'Models' => APP_PATH . '/Models',
         'Helpers' => APP_PATH . '/Helpers',
+        'Services' => APP_PATH . '/Services',
     ];
 
     foreach ($prefixes as $ns => $dir) {
@@ -37,6 +38,10 @@ use Core\Session;
 use Models\GradeModel;
 use Helpers\Security;
 use Helpers\Csrf;
+use Helpers\Notification;
+use Services\PerformanceAnalyzer;
+use Services\AlertService;
+use Services\GradeAnomalyDetector;
 
 header('Content-Type: application/json');
 
@@ -133,14 +138,140 @@ if ($method === 'POST') {
             'academic_year' => $input['academic_year'] ?? null,
         ];
         
+        // AI Anomaly Detection - Check for unusual patterns before saving
+        $anomalyDetector = new GradeAnomalyDetector($pdo);
+        $anomalyResult = $anomalyDetector->detectAnomalies($gradeData);
+        
+        // If high severity anomaly detected, return warning (but don't block - let teacher decide)
+        if ($anomalyResult['should_warn'] && $anomalyResult['overall_severity'] !== 'none') {
+            // Include anomaly info in response but don't block submission
+            // Teacher can review and proceed if intentional
+        }
+        
+        // Validate grade data to prevent division by zero and invalid values
+        if ($gradeData['max_score'] <= 0) {
+            throw new Exception('Maximum score must be greater than zero.');
+        }
+        if ($gradeData['grade_value'] < 0) {
+            throw new Exception('Grade value cannot be negative.');
+        }
+        
         $gradeModel = new GradeModel();
         $gradeId = $gradeModel->create($gradeData);
         
-        echo json_encode([
+        // Trigger AI performance analysis and alert generation
+        try {
+            $analyzer = new \Services\PerformanceAnalyzer($pdo);
+            $alertService = new \Services\AlertService($pdo, $analyzer);
+            
+            // Analyze student performance after grade entry
+            $analysis = $analyzer->analyzeStudent(
+                (int)$gradeData['student_id'],
+                (int)$gradeData['section_id'],
+                (int)$gradeData['quarter'],
+                $gradeData['academic_year'] ?? null
+            );
+            
+            // Generate alerts if student is at risk
+            if ($analysis && $analysis['is_at_risk']) {
+                $alertService->generateAlertsForStudent($analysis);
+            }
+        } catch (\Exception $e) {
+            // Log error but don't fail grade submission
+            error_log("AI Analysis error after grade submission: " . $e->getMessage());
+        }
+        
+        // Get student and subject info for notifications
+        $stmt = $pdo->prepare('
+            SELECT s.user_id as student_user_id, u.name as student_name, sub.name as subject_name
+            FROM students s
+            JOIN users u ON s.user_id = u.id
+            CROSS JOIN subjects sub ON sub.id = ?
+            WHERE s.id = ?
+        ');
+        $stmt->execute([$gradeData['subject_id'], $gradeData['student_id']]);
+        $gradeInfo = $stmt->fetch(\PDO::FETCH_ASSOC);
+        
+        // Get grade type label
+        $gradeTypeLabels = [
+            'ww' => 'Written Work',
+            'pt' => 'Performance Task',
+            'qe' => 'Quarterly Exam'
+        ];
+        $gradeTypeLabel = $gradeTypeLabels[$gradeData['grade_type']] ?? $gradeData['grade_type'];
+        
+        // Calculate percentage (max_score is validated to be > 0, so division is safe)
+        $percentage = ($gradeData['grade_value'] / $gradeData['max_score']) * 100;
+        
+        // Notify student
+        if ($gradeInfo && $gradeInfo['student_user_id']) {
+            Notification::create(
+                recipientIds: (int)$gradeInfo['student_user_id'],
+                type: 'grade',
+                category: 'grade_submitted',
+                title: 'New Grade Posted',
+                message: "A new {$gradeTypeLabel} grade has been posted for {$gradeInfo['subject_name']}: {$gradeData['grade_value']}/{$gradeData['max_score']} ({$percentage}%)",
+                options: [
+                    'link' => "/student/grades?subject={$gradeData['subject_id']}",
+                    'metadata' => [
+                        'grade_id' => $gradeId,
+                        'subject_id' => $gradeData['subject_id'],
+                        'subject_name' => $gradeInfo['subject_name'],
+                        'grade_type' => $gradeData['grade_type'],
+                        'grade_type_label' => $gradeTypeLabel,
+                        'grade_value' => $gradeData['grade_value'],
+                        'max_score' => $gradeData['max_score'],
+                        'percentage' => $percentage,
+                        'quarter' => $gradeData['quarter']
+                    ],
+                    'created_by' => $user['id']
+                ]
+            );
+            
+            // Notify parents if grade is low (< 75%)
+            if ($percentage < 75) {
+                Notification::createForParents(
+                    studentId: $gradeData['student_id'],
+                    type: 'grade',
+                    category: 'low_grade_alert',
+                    title: 'Low Grade Alert',
+                    message: "{$gradeInfo['student_name']}'s {$gradeTypeLabel} grade in {$gradeInfo['subject_name']} is {$percentage}% ({$gradeData['grade_value']}/{$gradeData['max_score']}).",
+                    options: [
+                        'priority' => 'high',
+                        'link' => '/parent/grades',
+                        'metadata' => [
+                            'subject' => $gradeInfo['subject_name'],
+                            'grade' => $percentage,
+                            'grade_type' => $gradeTypeLabel,
+                            'quarter' => $gradeData['quarter']
+                        ],
+                        'created_by' => $user['id']
+                    ]
+                );
+            }
+        }
+        
+        // Prepare response with anomaly info if detected
+        $response = [
             'success' => true,
             'message' => 'Grade submitted successfully',
             'data' => ['id' => $gradeId]
-        ]);
+        ];
+        
+        // Include anomaly warnings in response (non-blocking)
+        if ($anomalyResult['should_warn'] && $anomalyResult['overall_severity'] !== 'none') {
+            $response['anomaly_detection'] = [
+                'has_anomalies' => $anomalyResult['has_anomalies'],
+                'has_warnings' => $anomalyResult['has_warnings'],
+                'severity' => $anomalyResult['overall_severity'],
+                'anomalies' => $anomalyResult['anomalies'],
+                'warnings' => $anomalyResult['warnings'],
+                'suggestions' => $anomalyResult['suggestions'],
+                'message' => 'Grade submitted, but AI detected some unusual patterns. Please review.',
+            ];
+        }
+        
+        echo json_encode($response);
         
     } catch (Exception $e) {
         http_response_code(400);

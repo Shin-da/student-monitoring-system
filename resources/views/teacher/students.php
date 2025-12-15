@@ -87,12 +87,17 @@ $searchTerm = $stats['search_term'] ?? '';
                 <tbody>
                     <?php foreach ($students as $student): ?>
                         <tr>
-                            <td><?= htmlspecialchars($student['full_name'] ?? '') ?></td>
+                            <td>
+                                <a href="<?= \Helpers\Url::to('/teacher/view-student?id=' . (int)($student['student_id'] ?? 0)) ?>" 
+                                   class="text-decoration-none fw-semibold">
+                                    <?= htmlspecialchars($student['full_name'] ?? '') ?>
+                                </a>
+                            </td>
                             <td><span class="badge bg-secondary"><?= htmlspecialchars($student['lrn'] ?? '') ?></span></td>
                             <td>Grade <?= htmlspecialchars((string)($student['grade_level'] ?? '')) ?></td>
                             <td><?= htmlspecialchars($student['section_name'] ?? '') ?></td>
-                            <td><?= htmlspecialchars($student['subjects'] ?? '') ?></td>
-                            <td><?= htmlspecialchars($student['schedules'] ?? '') ?></td>
+                            <td><?= htmlspecialchars($student['subjects'] ?? 'N/A') ?></td>
+                            <td><?= htmlspecialchars($student['schedules'] ?? 'N/A') ?></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

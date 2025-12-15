@@ -10,14 +10,14 @@ $filters = $filters ?? ['section_id' => null, 'subject_id' => null, 'status' => 
 $sectionOptions = array_map(static function ($section) {
     return [
         'id' => $section['section_id'],
-        'label' => $section['section_name'],
+        'label' => $section['section_name'] ?? '',
     ];
 }, $sections);
 
 $subjectOptions = array_map(static function ($subject) {
     return [
         'id' => $subject['id'],
-        'label' => $subject['name'],
+        'label' => $subject['name'] ?? '',
     ];
 }, $subjects);
 ?>
@@ -70,7 +70,7 @@ $subjectOptions = array_map(static function ($subject) {
                 <option value="">All sections</option>
                 <?php foreach ($sectionOptions as $option): ?>
                     <option value="<?= (int)$option['id'] ?>" <?= ((int)$filters['section_id'] === (int)$option['id']) ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($option['label']) ?>
+                        <?= htmlspecialchars($option['label'] ?? '') ?>
                     </option>
                 <?php endforeach; ?>
             </select>
@@ -81,7 +81,7 @@ $subjectOptions = array_map(static function ($subject) {
                 <option value="">All subjects</option>
                 <?php foreach ($subjectOptions as $option): ?>
                     <option value="<?= (int)$option['id'] ?>" <?= ((int)$filters['subject_id'] === (int)$option['id']) ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($option['label']) ?>
+                        <?= htmlspecialchars($option['label'] ?? '') ?>
                     </option>
                 <?php endforeach; ?>
             </select>

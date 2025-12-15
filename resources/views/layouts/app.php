@@ -216,9 +216,9 @@
                   <hr class="dropdown-divider">
                 </li>
                 <li>
-                  <form method="post" action="<?= \Helpers\Url::to('/logout') ?>" class="d-inline">
+                  <form method="post" action="<?= \Helpers\Url::to('/logout') ?>" class="d-inline logout-form">
                     <input type="hidden" name="csrf_token" value="<?= \Helpers\Csrf::generateToken() ?>">
-                    <button class="dropdown-item text-danger" type="submit">Logout</button>
+                    <button class="dropdown-item text-danger" type="button">Logout</button>
                   </form>
                 </li>
               </ul>
@@ -254,6 +254,8 @@
   <script src="<?= \Helpers\Url::asset('assets/pwa-manager.js') ?>"></script>
   <script src="<?= \Helpers\Url::asset('assets/realtime-manager.js') ?>"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Logout Confirmation -->
+  <script src="<?= \Helpers\Url::asset('assets/logout-confirmation.js') ?>"></script>
 </body>
 
 </html>

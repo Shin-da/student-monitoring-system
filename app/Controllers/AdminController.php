@@ -7,6 +7,7 @@ use Core\Controller;
 use Core\Session;
 use Core\Database;
 use Helpers\Csrf;
+use Helpers\Notification;
 use PDO;
 use Exception;
 
@@ -222,29 +223,15 @@ class AdminController extends Controller
                     break;
 
                 case 'teacher':
-                    $stmt = $pdo->prepare('
-                        INSERT INTO teachers (user_id, is_adviser) 
-                        VALUES (:user_id, 0)
-                    ');
-                    $stmt->execute(['user_id' => $userId]);
+                    // Teacher profiles are created and kept in sync by centralized helpers
+                    // (create_user.php / ensureTeacherProfiles). Do not insert here to avoid
+                    // duplicate teacher rows or conflicting IDs.
                     break;
 
                 case 'adviser':
-                    $stmt = $pdo->prepare('
-                        INSERT INTO teachers (user_id, is_adviser) 
-                        VALUES (:user_id, 1)
-                    ');
-                    $stmt->execute(['user_id' => $userId]);
-                    
-                    // Also create adviser entry
-                    $stmt = $pdo->prepare('
-                        INSERT INTO advisers (user_id, section_id) 
-                        VALUES (:user_id, :section_id)
-                    ');
-                    $stmt->execute([
-                        'user_id' => $userId,
-                        'section_id' => 1 // Default section
-                    ]);
+                    // Same as teacher: avoid creating duplicate teacher rows here.
+                    // Adviser-specific linkage can be handled elsewhere when a section
+                    // adviser is explicitly assigned.
                     break;
 
                 case 'parent':
@@ -284,6 +271,44 @@ class AdminController extends Controller
             ]);
 
             $pdo->commit();
+
+            // Flash message for admin
+            Notification::success('User approved successfully');
+
+            // Notify the approved user (persistent notification)
+            Notification::create(
+                recipientIds: $userId,
+                type: 'success',
+                category: 'approval_request',
+                title: 'Account Approved',
+                message: "Your registration has been approved! You can now log in to your account.",
+                options: [
+                    'link' => '/login',
+                    'created_by' => $user['id'],
+                    'priority' => 'high'
+                ]
+            );
+
+            // Notify all admins (except the one who approved) - optional, can be removed if too noisy
+            // Get admin user IDs excluding current admin
+            $stmt = $pdo->prepare('SELECT id FROM users WHERE role = "admin" AND id != :admin_id AND status = "active"');
+            $stmt->execute(['admin_id' => $user['id']]);
+            $otherAdminIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            
+            if (!empty($otherAdminIds)) {
+                Notification::create(
+                    recipientIds: $otherAdminIds,
+                    type: 'info',
+                    category: 'user_management',
+                    title: 'User Approved',
+                    message: "User {$userToApprove['name']} ({$userToApprove['email']}) has been approved by {$user['name']}.",
+                    options: [
+                        'link' => '/admin/users',
+                        'created_by' => $user['id'],
+                        'metadata' => ['approved_user_id' => $userId, 'approved_role' => $role]
+                    ]
+                );
+            }
 
             if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest' || (($_SERVER['HTTP_ACCEPT'] ?? '') === 'application/json')) {
                 header('Content-Type: application/json');
@@ -390,6 +415,30 @@ class AdminController extends Controller
 
             $pdo->commit();
 
+            // Flash message for admin
+            Notification::success('User rejected successfully');
+
+            // Notify the rejected user (if user still exists and has email access)
+            // Note: User is deleted, but we can still create notification before deletion
+            // In this case, we'll notify admins only since user is being deleted
+            
+            // Notify all admins
+            Notification::createByRole(
+                roles: 'admin',
+                type: 'info',
+                category: 'user_management',
+                title: 'User Registration Rejected',
+                message: "Registration for {$userToReject['name']} ({$userToReject['email']}) has been rejected. Reason: {$rejectionReason}",
+                options: [
+                    'link' => '/admin/users',
+                    'created_by' => $user['id'],
+                    'metadata' => [
+                        'rejected_user_email' => $userToReject['email'],
+                        'rejection_reason' => $rejectionReason
+                    ]
+                ]
+            );
+
             if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest' || (($_SERVER['HTTP_ACCEPT'] ?? '') === 'application/json')) {
                 header('Content-Type: application/json');
                 echo json_encode(['success' => true, 'deleted' => true, 'message' => 'User rejected successfully']);
@@ -470,9 +519,48 @@ class AdminController extends Controller
         $config = require BASE_PATH . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . 'config.php';
         $pdo = Database::connection($config['database']);
 
+        // Get user info before activating
+        $stmt = $pdo->prepare('SELECT name, email FROM users WHERE id = :user_id');
+        $stmt->execute(['user_id' => $userId]);
+        $userToActivate = $stmt->fetch(PDO::FETCH_ASSOC);
+
         // Activate user
         $stmt = $pdo->prepare('UPDATE users SET status = "active" WHERE id = :user_id');
         $stmt->execute(['user_id' => $userId]);
+
+        // Flash message for admin
+        Notification::success('User activated successfully');
+
+        // Notify the activated user
+        if ($userToActivate) {
+            Notification::create(
+                recipientIds: $userId,
+                type: 'success',
+                category: 'user_management',
+                title: 'Account Reactivated',
+                message: 'Your account has been reactivated. You can now log in again.',
+                options: [
+                    'link' => '/login',
+                    'created_by' => $user['id'],
+                    'priority' => 'high'
+                ]
+            );
+        }
+
+        // Notify all admins
+        if ($userToActivate) {
+            Notification::createByRole(
+                roles: 'admin',
+                type: 'info',
+                category: 'user_management',
+                title: 'User Reactivated',
+                message: "User {$userToActivate['name']} ({$userToActivate['email']}) has been reactivated by {$user['name']}.",
+                options: [
+                    'link' => '/admin/users',
+                    'created_by' => $user['id']
+                ]
+            );
+        }
 
         if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest' || (($_SERVER['HTTP_ACCEPT'] ?? '') === 'application/json')) {
             header('Content-Type: application/json');
@@ -925,6 +1013,9 @@ class AdminController extends Controller
                     c.id,
                     c.schedule,
                     c.room as class_room,
+                    c.room as room,
+                    c.semester,
+                    c.school_year,
                     c.is_active,
                     c.created_at,
                     sec.id as section_id,
@@ -1028,10 +1119,14 @@ class AdminController extends Controller
         try {
             $pdo->beginTransaction();
 
-            // Validate required fields
+            // Validate required fields (treat "0" as a value; only null/empty-string are missing)
             $requiredFields = ['section_id', 'subject_id', 'teacher_id', 'schedule', 'room'];
             foreach ($requiredFields as $field) {
-                if (empty($_POST[$field])) {
+                if (!array_key_exists($field, $_POST)) {
+                    throw new \Exception("Missing required field: {$field}");
+                }
+                $value = is_string($_POST[$field]) ? trim($_POST[$field]) : $_POST[$field];
+                if ($value === '' || $value === null) {
                     throw new \Exception("Missing required field: {$field}");
                 }
             }
@@ -1050,9 +1145,82 @@ class AdminController extends Controller
                 throw new \Exception('Invalid schedule format. Use format like "M 8:00 AM-9:00 AM" or "TH 10:00 AM-11:00 AM"');
             }
 
-            // Check for conflicts
+            // Check for exact duplicates and conflicts across ALL teachers (not just selected teacher)
+            $uniqueDays = array_values(array_unique($scheduleData['days']));
+            foreach ($uniqueDays as $day) {
+                // Check if ANY teacher already has this exact schedule (same day, same time)
+                $duplicateCheck = $pdo->prepare('
+                    SELECT ts.id, ts.teacher_id, ts.class_id, u.name as teacher_name
+                    FROM teacher_schedules ts
+                    LEFT JOIN teachers t ON ts.teacher_id = t.id
+                    LEFT JOIN users u ON t.user_id = u.id
+                    WHERE ts.day_of_week = ? 
+                    AND ts.start_time = ? 
+                    AND ts.end_time = ?
+                    LIMIT 1
+                ');
+                $duplicateCheck->execute([$day, $scheduleData['start_time'], $scheduleData['end_time']]);
+                $existing = $duplicateCheck->fetch(PDO::FETCH_ASSOC);
+                
+                if ($existing) {
+                    $existingTeacherName = $existing['teacher_name'] ?? 'Another teacher';
+                    throw new \Exception("Schedule conflict: {$existingTeacherName} already has a class scheduled on {$day} from {$scheduleData['start_ampm']} to {$scheduleData['end_ampm']}. Please choose a different time or day.");
+                }
+                
+                // Check if ANY teacher has overlapping time on this day
+                $overlapCheck = $pdo->prepare('
+                    SELECT ts.id, ts.teacher_id, u.name as teacher_name, ts.start_time, ts.end_time
+                    FROM teacher_schedules ts
+                    LEFT JOIN teachers t ON ts.teacher_id = t.id
+                    LEFT JOIN users u ON t.user_id = u.id
+                    WHERE ts.day_of_week = ? 
+                    AND (
+                        -- Overlapping: new start < existing end AND new end > existing start
+                        (ts.start_time < ? AND ts.end_time > ?)
+                    )
+                    LIMIT 1
+                ');
+                $overlapCheck->execute([$day, $scheduleData['end_time'], $scheduleData['start_time']]);
+                $overlapping = $overlapCheck->fetch(PDO::FETCH_ASSOC);
+                
+                if ($overlapping) {
+                    $overlapTeacherName = $overlapping['teacher_name'] ?? 'Another teacher';
+                    $overlapStart = date('g:i A', strtotime($overlapping['start_time']));
+                    $overlapEnd = date('g:i A', strtotime($overlapping['end_time']));
+                    throw new \Exception("Schedule conflict: {$overlapTeacherName} already has a class scheduled on {$day} from {$overlapStart} to {$overlapEnd}, which overlaps with your selected time ({$scheduleData['start_ampm']} to {$scheduleData['end_ampm']}). Please choose a different time.");
+                }
+            }
+            
+            // Check for overlapping time conflicts
             $conflicts = $this->checkScheduleConflicts($pdo, $teacherId, $scheduleData['days'], $scheduleData['start_time'], $scheduleData['end_time']);
             if (!empty($conflicts)) {
+                // Get teacher and subject info for notification
+                $stmt = $pdo->prepare('
+                    SELECT u.name as teacher_name, sub.name as subject_name, sec.name as section_name
+                    FROM users u
+                    JOIN teachers t ON u.id = t.user_id
+                    CROSS JOIN subjects sub ON sub.id = ?
+                    CROSS JOIN sections sec ON sec.id = ?
+                    WHERE t.id = ?
+                    LIMIT 1
+                ');
+                $stmt->execute([$subjectId, $sectionId, $teacherId]);
+                $classInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                // Notify admin about conflict
+                Notification::create(
+                    recipientIds: $user['id'],
+                    type: 'error',
+                    category: 'schedule_change',
+                    title: 'Schedule Conflict Detected',
+                    message: "Cannot create class: {$classInfo['teacher_name']} already has a conflicting class. Please choose a different time or teacher.",
+                    options: [
+                        'priority' => 'high',
+                        'link' => '/admin/create-class',
+                        'metadata' => ['conflicts' => $conflicts, 'teacher_id' => $teacherId]
+                    ]
+                );
+                
                 throw new \Exception('Schedule conflict detected. Teacher already has classes during this time.');
             }
 
@@ -1127,7 +1295,55 @@ class AdminController extends Controller
             // Sync section adviser/teacher linkage
             $this->linkTeacherToSection($pdo, $sectionId, $teacherId);
 
+            // Get class details for notifications
+            $stmt = $pdo->prepare('
+                SELECT sub.name as subject_name, sec.name as section_name, u.name as teacher_name
+                FROM classes c
+                JOIN subjects sub ON c.subject_id = sub.id
+                JOIN sections sec ON c.section_id = sec.id
+                JOIN teachers t ON c.teacher_id = t.id
+                JOIN users u ON t.user_id = u.id
+                WHERE c.id = ?
+            ');
+            $stmt->execute([$classId]);
+            $classDetails = $stmt->fetch(PDO::FETCH_ASSOC);
+
             $pdo->commit();
+
+            // Flash message for admin
+            Notification::success('Class created successfully');
+
+            // Notify teacher
+            $stmt = $pdo->prepare('SELECT user_id FROM teachers WHERE id = ?');
+            $stmt->execute([$teacherId]);
+            $teacherUserId = $stmt->fetchColumn();
+            
+            if ($teacherUserId && $classDetails) {
+                Notification::create(
+                    recipientIds: (int)$teacherUserId,
+                    type: 'schedule',
+                    category: 'class_created',
+                    title: 'New Class Assignment',
+                    message: "You have been assigned to teach {$classDetails['subject_name']} for {$classDetails['section_name']}. Schedule: {$schedule}",
+                    options: [
+                        'link' => "/teacher/classes?class={$classId}",
+                        'metadata' => ['class_id' => $classId, 'subject' => $classDetails['subject_name']],
+                        'created_by' => $user['id']
+                    ]
+                );
+            }
+
+            // Notify section members (students and adviser)
+            if ($classDetails) {
+                Notification::createForSection(
+                    sectionId: $sectionId,
+                    type: 'schedule',
+                    category: 'class_created',
+                    title: 'New Class Added',
+                    message: "New class: {$classDetails['subject_name']} with {$classDetails['teacher_name']}. Schedule: {$schedule}, Room: {$room}",
+                    options: ['link' => '/student/schedule', 'created_by' => $user['id']]
+                );
+            }
 
             header('Location: ' . \Helpers\Url::to('/admin/classes?success=class_created'));
             exit();
@@ -1248,32 +1464,75 @@ class AdminController extends Controller
 
     private function checkScheduleConflicts($pdo, $teacherId, $days, $startTime, $endTime): array
     {
-        $placeholders = str_repeat('?,', count($days) - 1) . '?';
-        $params = array_merge([$teacherId], $days, [$endTime, $startTime]);
+        // Remove duplicate days
+        $uniqueDays = array_values(array_unique($days));
+        $placeholders = str_repeat('?,', count($uniqueDays) - 1) . '?';
 
+        // Check for:
+        // 1. Exact duplicates (same day, same time)
+        // 2. Overlapping times (new start < existing end AND new end > existing start)
         $stmt = $pdo->prepare("
-            SELECT ts.*, c.schedule, sec.name as section_name, sub.name as subject_name
+            SELECT DISTINCT
+                ts.id,
+                ts.day_of_week,
+                ts.start_time,
+                ts.end_time,
+                ts.class_id,
+                c.schedule,
+                sec.name as section_name,
+                sub.name as subject_name
             FROM teacher_schedules ts
             LEFT JOIN classes c ON ts.class_id = c.id
             LEFT JOIN sections sec ON c.section_id = sec.id
             LEFT JOIN subjects sub ON c.subject_id = sub.id
             WHERE ts.teacher_id = ? 
             AND ts.day_of_week IN ($placeholders)
-            AND (ts.start_time < ? AND ts.end_time > ?)
+            AND (
+                -- Exact duplicate check
+                (ts.start_time = ? AND ts.end_time = ?)
+                OR
+                -- Overlapping time check: schedules overlap if new start < existing end AND new end > existing start
+                (ts.start_time < ? AND ts.end_time > ?)
+            )
+            ORDER BY ts.day_of_week, ts.start_time
         ");
         
+        // Parameters: teacherId, days..., startTime (for exact), endTime (for exact), endTime (for overlap), startTime (for overlap)
+        $params = array_merge([$teacherId], $uniqueDays, [$startTime, $endTime, $endTime, $startTime]);
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     private function createTeacherSchedules($pdo, $teacherId, $classId, $days, $startTime, $endTime): void
     {
+        // Remove duplicate days to prevent inserting the same schedule multiple times
+        $uniqueDays = array_values(array_unique($days));
+        
+        // Use INSERT IGNORE to prevent duplicate key errors (handles unique constraint gracefully)
+        // The unique constraint is: (teacher_id, day_of_week, start_time, end_time)
         $stmt = $pdo->prepare('
-            INSERT INTO teacher_schedules (teacher_id, day_of_week, start_time, end_time, class_id)
+            INSERT IGNORE INTO teacher_schedules (teacher_id, day_of_week, start_time, end_time, class_id)
             VALUES (?, ?, ?, ?, ?)
         ');
 
-        foreach ($days as $day) {
+        foreach ($uniqueDays as $day) {
+            // Check for exact duplicate before inserting
+            $checkStmt = $pdo->prepare('
+                SELECT id FROM teacher_schedules 
+                WHERE teacher_id = ? 
+                AND day_of_week = ? 
+                AND start_time = ? 
+                AND end_time = ?
+                LIMIT 1
+            ');
+            $checkStmt->execute([$teacherId, $day, $startTime, $endTime]);
+            
+            if ($checkStmt->fetch()) {
+                // Exact duplicate exists, skip this day
+                continue;
+            }
+            
+            // Insert the schedule
             $stmt->execute([$teacherId, $day, $startTime, $endTime, $classId]);
         }
     }
@@ -1968,6 +2227,33 @@ class AdminController extends Controller
 
             $pdo->commit();
 
+            // Flash message for admin
+            Notification::success('Adviser assigned successfully');
+
+            // Notify the assigned adviser
+            Notification::create(
+                recipientIds: $adviserId,
+                type: 'success',
+                category: 'section_assignment',
+                title: 'Adviser Assignment',
+                message: "You have been assigned as the adviser for {$section['name']}.",
+                options: [
+                    'link' => '/teacher/sections',
+                    'created_by' => $user['id'],
+                    'metadata' => ['section_id' => $sectionId, 'section_name' => $section['name']]
+                ]
+            );
+
+            // Notify all students in the section
+            Notification::createForSection(
+                sectionId: $sectionId,
+                type: 'info',
+                category: 'section_assignment',
+                title: 'New Section Adviser',
+                message: "{$adviser['name']} is now your section adviser for {$section['name']}.",
+                options: ['link' => '/student/dashboard', 'created_by' => $user['id']]
+            );
+
             header('Location: ' . \Helpers\Url::to('/admin/assign-advisers?success=adviser_assigned&section=' . urlencode($section['name']) . '&adviser=' . urlencode($adviser['name'])));
 
         } catch (\Exception $e) {
@@ -2081,6 +2367,7 @@ class AdminController extends Controller
 
         try {
             // Get all sections with student counts and capacity info
+            // Include all active sections regardless of school year, but prioritize current year
             $stmt = $pdo->prepare('
                 SELECT 
                     s.id,
@@ -2091,23 +2378,33 @@ class AdminController extends Controller
                     s.school_year,
                     s.is_active,
                     s.created_at,
-                    COUNT(st.id) as enrolled_students,
+                    s.description,
+                    COUNT(DISTINCT st.id) as enrolled_students,
                     u.name as adviser_name,
                     u.email as adviser_email,
+                    s.adviser_id,
                     CASE 
-                        WHEN COUNT(st.id) >= s.max_students THEN "full"
-                        WHEN COUNT(st.id) >= s.max_students * 0.8 THEN "nearly_full"
+                        WHEN COUNT(DISTINCT st.id) >= s.max_students THEN "full"
+                        WHEN COUNT(DISTINCT st.id) >= s.max_students * 0.8 THEN "nearly_full"
                         ELSE "available"
                     END as status
                 FROM sections s
-                LEFT JOIN students st ON st.section_id = s.id
+                LEFT JOIN students st ON st.section_id = s.id AND (st.status = "enrolled" OR st.status IS NULL)
                 LEFT JOIN users u ON s.adviser_id = u.id
-                WHERE s.school_year = "2025-2026"
-                GROUP BY s.id, s.name, s.grade_level, s.room, s.max_students, s.school_year, s.is_active, s.created_at, u.name, u.email
-                ORDER BY s.grade_level, s.name
+                WHERE s.is_active = 1
+                GROUP BY s.id, s.name, s.grade_level, s.room, s.max_students, s.school_year, s.is_active, s.created_at, s.description, u.name, u.email, s.adviser_id
+                ORDER BY s.school_year DESC, s.grade_level, s.name
             ');
             $stmt->execute();
             $sections = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Ensure numeric values are properly cast
+            foreach ($sections as &$section) {
+                $section['enrolled_students'] = (int)($section['enrolled_students'] ?? 0);
+                $section['max_students'] = (int)($section['max_students'] ?? 0);
+                $section['grade_level'] = (int)($section['grade_level'] ?? 0);
+            }
+            unset($section);
 
             // Get unassigned students count
             $stmt = $pdo->prepare('
@@ -2233,12 +2530,17 @@ class AdminController extends Controller
                 $_SERVER['HTTP_USER_AGENT'] ?? null
             ]);
 
-            if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest' || (($_SERVER['HTTP_ACCEPT'] ?? '') === 'application/json')) {
+            // Always return JSON for AJAX requests, or check Accept header
+            $isAjax = ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest';
+            $acceptsJson = strpos($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json') !== false;
+            
+            if ($isAjax || $acceptsJson) {
                 header('Content-Type: application/json');
                 echo json_encode([
                     'success' => true,
                     'message' => 'Section created successfully',
-                    'section_id' => $sectionId
+                    'section_id' => $sectionId,
+                    'section_name' => $name
                 ]);
                 return;
             }
@@ -2343,11 +2645,16 @@ class AdminController extends Controller
                 $_SERVER['HTTP_USER_AGENT'] ?? null
             ]);
 
-            if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest' || (($_SERVER['HTTP_ACCEPT'] ?? '') === 'application/json')) {
+            // Always return JSON for AJAX requests, or check Accept header
+            $isAjax = ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest';
+            $acceptsJson = strpos($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json') !== false;
+            
+            if ($isAjax || $acceptsJson) {
                 header('Content-Type: application/json');
                 echo json_encode([
                     'success' => true,
-                    'message' => 'Section updated successfully'
+                    'message' => 'Section updated successfully',
+                    'section_id' => $sectionId
                 ]);
                 return;
             }
@@ -2473,6 +2780,61 @@ class AdminController extends Controller
                 $_SERVER['HTTP_USER_AGENT'] ?? null
             ]);
 
+            // Get student user ID and name
+            $stmt = $pdo->prepare('
+                SELECT s.user_id, u.name as student_name
+                FROM students s
+                JOIN users u ON s.user_id = u.id
+                WHERE s.id = ?
+            ');
+            $stmt->execute([$studentId]);
+            $studentInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            // Flash message for admin
+            Notification::success('Student assigned to section successfully');
+
+            // Notify student
+            if ($studentInfo && $studentInfo['user_id']) {
+                Notification::create(
+                    recipientIds: (int)$studentInfo['user_id'],
+                    type: 'success',
+                    category: 'section_assignment',
+                    title: 'Section Assignment',
+                    message: "You have been assigned to {$section['name']}. Check your schedule for details.",
+                    options: [
+                        'link' => '/student/dashboard',
+                        'created_by' => $user['id'],
+                        'metadata' => ['section_id' => $sectionId, 'section_name' => $section['name']]
+                    ]
+                );
+
+                // Notify parents of the student
+                Notification::createForParents(
+                    studentId: $studentId,
+                    type: 'info',
+                    category: 'section_assignment',
+                    title: 'Section Assignment',
+                    message: "{$studentInfo['student_name']} has been assigned to {$section['name']} for the current school year.",
+                    options: ['link' => '/parent/profile', 'created_by' => $user['id']]
+                );
+
+                // Notify section adviser if exists
+                $stmt = $pdo->prepare('SELECT adviser_id FROM sections WHERE id = ?');
+                $stmt->execute([$sectionId]);
+                $adviserId = $stmt->fetchColumn();
+                
+                if ($adviserId) {
+                    Notification::create(
+                        recipientIds: (int)$adviserId,
+                        type: 'info',
+                        category: 'section_assignment',
+                        title: 'New Student in Section',
+                        message: "{$studentInfo['student_name']} has been added to your section: {$section['name']}.",
+                        options: ['link' => "/teacher/sections?section={$sectionId}", 'created_by' => $user['id']]
+                    );
+                }
+            }
+
             if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest' || (($_SERVER['HTTP_ACCEPT'] ?? '') === 'application/json')) {
                 header('Content-Type: application/json');
                 echo json_encode([
@@ -2527,14 +2889,17 @@ class AdminController extends Controller
                     s.school_year,
                     s.description,
                     s.is_active,
-                    COUNT(st.id) as enrolled_students,
-                    (s.max_students - COUNT(st.id)) as available_slots,
-                    u.name as adviser_name
+                    s.created_at,
+                    COUNT(DISTINCT st.id) as enrolled_students,
+                    GREATEST(0, s.max_students - COUNT(DISTINCT st.id)) as available_slots,
+                    u.name as adviser_name,
+                    u.email as adviser_email,
+                    s.adviser_id
                 FROM sections s
-                LEFT JOIN students st ON st.section_id = s.id
+                LEFT JOIN students st ON st.section_id = s.id AND st.status = "enrolled"
                 LEFT JOIN users u ON s.adviser_id = u.id
                 WHERE s.id = ?
-                GROUP BY s.id, s.name, s.grade_level, s.room, s.max_students, s.school_year, s.description, s.is_active, u.name
+                GROUP BY s.id, s.name, s.grade_level, s.room, s.max_students, s.school_year, s.description, s.is_active, s.created_at, u.name, u.email, s.adviser_id
             ');
             $stmt->execute([$sectionId]);
             $section = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -2545,6 +2910,12 @@ class AdminController extends Controller
                 return;
             }
 
+            // Ensure numeric values are properly cast
+            $section['enrolled_students'] = (int)($section['enrolled_students'] ?? 0);
+            $section['max_students'] = (int)($section['max_students'] ?? 0);
+            $section['available_slots'] = (int)($section['available_slots'] ?? 0);
+            $section['grade_level'] = (int)($section['grade_level'] ?? 0);
+
             header('Content-Type: application/json');
             echo json_encode([
                 'success' => true,
@@ -2554,6 +2925,261 @@ class AdminController extends Controller
         } catch (\Exception $e) {
             header('Content-Type: application/json');
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Delete a section
+     */
+    public function deleteSection(): void
+    {
+        $user = Session::get('user');
+        if (!$user || ($user['role'] ?? '') !== 'admin') {
+            if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest' || (($_SERVER['HTTP_ACCEPT'] ?? '') === 'application/json')) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+                return;
+            }
+            \Helpers\ErrorHandler::forbidden('You need administrator privileges.');
+            return;
+        }
+
+        if (!Csrf::check($_POST['csrf_token'] ?? null)) {
+            if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest' || (($_SERVER['HTTP_ACCEPT'] ?? '') === 'application/json')) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'CSRF token mismatch']);
+                return;
+            }
+            http_response_code(419);
+            header('Location: ' . \Helpers\Url::to('/admin/sections?error=' . urlencode('Invalid security token')));
+            return;
+        }
+
+        $config = require BASE_PATH . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . 'config.php';
+        $pdo = Database::connection($config['database']);
+
+        try {
+            $sectionId = (int)($_POST['section_id'] ?? 0);
+            if (!$sectionId) {
+                throw new \Exception('Invalid section ID.');
+            }
+
+            $pdo->beginTransaction();
+
+            // Get section information for logging
+            $stmt = $pdo->prepare('
+                SELECT s.id, s.name, s.grade_level, s.adviser_id, 
+                       COUNT(DISTINCT st.id) as student_count,
+                       COUNT(DISTINCT c.id) as class_count
+                FROM sections s
+                LEFT JOIN students st ON st.section_id = s.id
+                LEFT JOIN classes c ON c.section_id = s.id
+                WHERE s.id = ?
+                GROUP BY s.id, s.name, s.grade_level, s.adviser_id
+            ');
+            $stmt->execute([$sectionId]);
+            $section = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$section) {
+                throw new \Exception('Section not found.');
+            }
+
+            $studentCount = (int)($section['student_count'] ?? 0);
+            $classCount = (int)($section['class_count'] ?? 0);
+
+            // Check if section has active classes - prevent deletion if it does
+            if ($classCount > 0) {
+                throw new \Exception("Cannot delete section '{$section['name']}'. It has {$classCount} active class(es). Please delete or reassign the classes first.");
+            }
+
+            // Get affected students BEFORE unassigning them (for notifications)
+            $affectedStudents = [];
+            if ($studentCount > 0) {
+                $stmt = $pdo->prepare('SELECT id, user_id FROM students WHERE section_id = ?');
+                $stmt->execute([$sectionId]);
+                $affectedStudents = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            }
+
+            // 1. Remove students from section (set section_id to NULL)
+            if ($studentCount > 0) {
+                $stmt = $pdo->prepare('UPDATE students SET section_id = NULL WHERE section_id = ?');
+                $stmt->execute([$sectionId]);
+            }
+
+            // 2. Remove student enrollments in classes for this section (via student_classes)
+            $stmt = $pdo->prepare('
+                DELETE sc FROM student_classes sc
+                INNER JOIN classes c ON sc.class_id = c.id
+                WHERE c.section_id = ?
+            ');
+            $stmt->execute([$sectionId]);
+
+            // 3. Delete assignments for this section
+            $stmt = $pdo->prepare('DELETE FROM assignments WHERE section_id = ?');
+            $stmt->execute([$sectionId]);
+
+            // 4. Delete attendance records for this section (if not cascading)
+            $stmt = $pdo->prepare('DELETE FROM attendance WHERE section_id = ?');
+            $stmt->execute([$sectionId]);
+
+            // 5. Delete grades for this section (if any exist)
+            $stmt = $pdo->prepare('DELETE FROM grades WHERE section_id = ?');
+            $stmt->execute([$sectionId]);
+
+            // 6. Delete performance alerts for this section
+            $stmt = $pdo->prepare('DELETE FROM performance_alerts WHERE section_id = ?');
+            $stmt->execute([$sectionId]);
+
+            // 7. Handle adviser assignment before deleting section
+            if ($section['adviser_id']) {
+                // Check if this adviser is assigned to any other sections (before we delete this one)
+                $stmt = $pdo->prepare('SELECT COUNT(*) as count FROM sections WHERE adviser_id = ? AND id != ?');
+                $stmt->execute([$section['adviser_id'], $sectionId]);
+                $otherAssignments = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                // If no other assignments, remove adviser flag from teacher record
+                if ($otherAssignments['count'] == 0) {
+                    $stmt = $pdo->prepare('UPDATE teachers SET is_adviser = 0 WHERE user_id = ?');
+                    $stmt->execute([$section['adviser_id']]);
+                }
+            }
+
+            // 8. Permanently delete the section from the database
+            $stmt = $pdo->prepare('DELETE FROM sections WHERE id = ?');
+            $result = $stmt->execute([$sectionId]);
+            
+            // Check if deletion actually affected any rows
+            $rowsAffected = $stmt->rowCount();
+            if ($rowsAffected === 0) {
+                throw new \Exception('Section deletion failed: No rows were deleted. Section may not exist or may have already been deleted.');
+            }
+            
+            // Verify deletion was successful by checking if section still exists
+            $stmt = $pdo->prepare('SELECT COUNT(*) as count FROM sections WHERE id = ?');
+            $stmt->execute([$sectionId]);
+            $verifyDelete = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($verifyDelete['count'] > 0) {
+                throw new \Exception('Failed to delete section. Section still exists in database after deletion attempt.');
+            }
+            
+            // Log successful deletion for debugging
+            error_log("Section {$sectionId} ({$section['name']}) successfully deleted from database. Rows affected: {$rowsAffected}");
+
+            // 8. Log the deletion (do not fail the whole operation if logging breaks)
+            try {
+                $stmt = $pdo->prepare('
+                    INSERT INTO audit_logs (user_id, action, target_type, target_id, details, ip_address, user_agent) 
+                    VALUES (:admin_id, "section_deleted", "section", :section_id, :details, :ip, :user_agent)
+                ');
+                $stmt->execute([
+                    'admin_id' => $user['id'],
+                    'section_id' => $sectionId,
+                    'details' => json_encode([
+                        'section_name' => $section['name'],
+                        'section_id' => $sectionId,
+                        'grade_level' => $section['grade_level'],
+                        'students_affected' => $studentCount,
+                        'adviser_id' => $section['adviser_id']
+                    ]),
+                    'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
+                    'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? null
+                ]);
+            } catch (\PDOException $logEx) {
+                // If the audit log table is misconfigured (e.g., non-AUTO_INCREMENT id), do not block deletion
+                error_log('Audit log insert failed after section delete: ' . $logEx->getMessage());
+            }
+
+            $pdo->commit();
+
+            // Send notifications to affected students and parents
+            if (!empty($affectedStudents)) {
+                foreach ($affectedStudents as $student) {
+                    if ($student['user_id']) {
+                        Notification::create(
+                            (int)$student['user_id'],
+                            'Section Removed',
+                            "You have been removed from section '{$section['name']}' as it has been deleted.",
+                            'warning',
+                            'academic'
+                        );
+                    }
+                    
+                    // Notify parents
+                    $parentStmt = $pdo->prepare('SELECT user_id FROM parents WHERE student_id = ?');
+                    $parentStmt->execute([$student['id']]);
+                    $parents = $parentStmt->fetchAll(PDO::FETCH_ASSOC);
+                    foreach ($parents as $parent) {
+                        Notification::create(
+                            (int)$parent['user_id'],
+                            'Child\'s Section Removed',
+                            "Your child has been removed from section '{$section['name']}' as it has been deleted.",
+                            'warning',
+                            'academic'
+                        );
+                    }
+                }
+            }
+
+            // Return JSON response for AJAX
+            if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest' || (($_SERVER['HTTP_ACCEPT'] ?? '') === 'application/json')) {
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'success' => true,
+                    'message' => "Section '{$section['name']}' has been deleted successfully."
+                ]);
+                return;
+            }
+
+            // Redirect for traditional form submission
+            header('Location: ' . \Helpers\Url::to('/admin/sections?success=section_deleted&section=' . urlencode($section['name'])));
+            return;
+
+        } catch (\Exception $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            
+            // Log the error for debugging
+            error_log("Section deletion error: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
+            
+            // Return JSON response for AJAX
+            if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest' || (($_SERVER['HTTP_ACCEPT'] ?? '') === 'application/json')) {
+                header('Content-Type: application/json');
+                http_response_code(500);
+                echo json_encode([
+                    'success' => false,
+                    'error' => $e->getMessage()
+                ]);
+                return;
+            }
+            
+            // Redirect for traditional form submission
+            header('Location: ' . \Helpers\Url::to('/admin/sections?error=' . urlencode($e->getMessage())));
+        } catch (\Throwable $e) {
+            // Catch any other errors (PDO exceptions, etc.)
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            
+            // Log the error for debugging
+            error_log("Section deletion fatal error: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
+            
+            // Return JSON response for AJAX
+            if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest' || (($_SERVER['HTTP_ACCEPT'] ?? '') === 'application/json')) {
+                header('Content-Type: application/json');
+                http_response_code(500);
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'An unexpected error occurred while deleting the section. Please check the server logs.'
+                ]);
+                return;
+            }
+            
+            // Redirect for traditional form submission
+            header('Location: ' . \Helpers\Url::to('/admin/sections?error=' . urlencode('An unexpected error occurred')));
         }
     }
 

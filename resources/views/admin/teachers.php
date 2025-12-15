@@ -10,14 +10,14 @@ $search = $search ?? '';
 $status = $status ?? '';
 ?>
 
-<div class="container-fluid py-4">
+<div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h2 class="mb-1"><i class="fas fa-chalkboard-teacher me-2"></i>Teacher Management</h2>
             <p class="text-muted mb-0">Manage teachers and their assignments</p>
         </div>
         <div>
-            <a href="<?= url('/admin/users') ?>" class="btn btn-primary">
+            <a href="<?= \Helpers\Url::to('/admin/users') ?>" class="btn btn-primary">
                 <i class="fas fa-user-plus me-2"></i>Add New Teacher
             </a>
         </div>
@@ -82,7 +82,7 @@ $status = $status ?? '';
     <!-- Search and Filter -->
     <div class="card shadow-sm mb-4">
         <div class="card-body">
-            <form method="get" action="<?= url('/admin/teachers') ?>">
+            <form method="get" action="<?= \Helpers\Url::to('/admin/teachers') ?>">
                 <div class="row g-3">
                     <div class="col-md-6">
                         <input type="text" name="search" class="form-control" 
@@ -146,7 +146,7 @@ $status = $status ?? '';
                                     </td>
                                     <td><?= date('M d, Y', strtotime($teacher['created_at'])) ?></td>
                                     <td class="text-center">
-                                        <a href="<?= url('/admin/view-teacher?id=' . $teacher['user_id']) ?>" 
+                                        <a href="<?= \Helpers\Url::to('/admin/view-teacher?id=' . $teacher['user_id']) ?>" 
                                            class="btn btn-sm btn-outline-primary"
                                            title="View Details">
                                             <i class="fas fa-eye"></i>

@@ -8,6 +8,7 @@ use Core\Session;
 use Core\Database;
 use Helpers\Validator;
 use Helpers\Csrf;
+use Helpers\Notification;
 use PDO;
 
 class AuthController extends Controller
@@ -67,6 +68,9 @@ class AuthController extends Controller
         }
 
         Session::set('user', ['id' => (int)$user['id'], 'name' => $user['name'], 'role' => $user['role']]);
+
+        // Flash success message for login
+        Notification::success('Welcome back, ' . htmlspecialchars($user['name']) . '!');
 
         $redirects = [
             'admin' => '/admin',
@@ -171,6 +175,10 @@ class AuthController extends Controller
 
     public function logout(): void
     {
+        // Get user info before destroying session
+        $user = Session::get('user');
+        $userName = $user['name'] ?? 'User';
+        
         // Optional: enforce POST + CSRF (if logout is a form with token)
         if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             if (!Csrf::check($_POST['csrf_token'] ?? null)) {
@@ -179,8 +187,12 @@ class AuthController extends Controller
                 return;
             }
         }
+        
         Session::destroy();
-        header('Location: ' . \Helpers\Url::to('/'));
+        
+        // Redirect to login with logout message (via query parameter)
+        $location = \Helpers\Url::to('/login?logout=1');
+        header('Location: ' . $location);
     }
 }
 

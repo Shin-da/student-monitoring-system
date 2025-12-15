@@ -18,6 +18,16 @@
     </div>
   <?php endif; ?>
   
+  <?php if (isset($_GET['logout']) && $_GET['logout'] == '1'): ?>
+    <div class="alert alert-success alert-dismissible fade show d-flex align-items-center gap-2" role="alert">
+      <svg width="20" height="20" fill="currentColor">
+        <use href="#icon-check"></use>
+      </svg>
+      <span>You have been successfully logged out. Please log in again to continue.</span>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+  <?php endif; ?>
+  
   <form method="post" action="<?= \Helpers\Url::to('/login') ?>" class="auth-form" id="loginForm" novalidate>
     <input type="hidden" name="csrf_token" value="<?= \Helpers\Csrf::generateToken() ?>">
     

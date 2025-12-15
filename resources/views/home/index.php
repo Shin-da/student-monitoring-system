@@ -75,6 +75,106 @@
   </div>
 </section>
 
+<!-- AI-Powered Features Section -->
+<section class="ai-features-section py-5 my-5 position-relative overflow-hidden">
+  <div class="ai-background-decoration"></div>
+  <div class="container-fluid container-narrow position-relative">
+    <div class="text-center mb-5">
+      <div class="d-inline-flex align-items-center justify-content-center gap-2 mb-3">
+        <div class="ai-badge">
+          <span class="me-2">🤖</span>
+          <span class="fw-bold">AI-Powered</span>
+        </div>
+      </div>
+      <h2 class="h2 fw-bold mb-3">Intelligent Student Monitoring</h2>
+      <p class="text-muted lead">Advanced AI analytics that automatically identify at-risk students and predict performance trends</p>
+    </div>
+    
+    <div class="row g-4 mb-5">
+      <div class="col-md-6 col-lg-4">
+        <div class="ai-feature-card surface h-100 p-4 rounded-4 border-start border-4 border-primary">
+          <div class="ai-icon-wrapper mb-3">
+            <div class="ai-icon-glow bg-primary-subtle text-primary rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 64px; height: 64px; font-size: 28px;">
+              ⚠️
+            </div>
+          </div>
+          <h3 class="h5 fw-bold mb-2">Automated Risk Detection</h3>
+          <p class="text-muted mb-3">AI continuously analyzes student performance to identify at-risk students before they fail, enabling early intervention.</p>
+          <ul class="list-unstyled small text-muted mb-0">
+            <li class="mb-1">✓ Real-time performance monitoring</li>
+            <li class="mb-1">✓ Multi-factor risk assessment</li>
+            <li class="mb-1">✓ Automatic alert generation</li>
+          </ul>
+        </div>
+      </div>
+      
+      <div class="col-md-6 col-lg-4">
+        <div class="ai-feature-card surface h-100 p-4 rounded-4 border-start border-4 border-success">
+          <div class="ai-icon-wrapper mb-3">
+            <div class="ai-icon-glow bg-success-subtle text-success rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 64px; height: 64px; font-size: 28px;">
+              📈
+            </div>
+          </div>
+          <h3 class="h5 fw-bold mb-2">Predictive Analytics</h3>
+          <p class="text-muted mb-3">Machine learning algorithms predict future grades and performance trends, helping teachers intervene proactively.</p>
+          <ul class="list-unstyled small text-muted mb-0">
+            <li class="mb-1">✓ Grade prediction with confidence scores</li>
+            <li class="mb-1">✓ Trend analysis (improving/declining)</li>
+            <li class="mb-1">✓ Early warning system</li>
+          </ul>
+        </div>
+      </div>
+      
+      <div class="col-md-6 col-lg-4">
+        <div class="ai-feature-card surface h-100 p-4 rounded-4 border-start border-4 border-warning">
+          <div class="ai-icon-wrapper mb-3">
+            <div class="ai-icon-glow bg-warning-subtle text-warning rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 64px; height: 64px; font-size: 28px;">
+              🔍
+            </div>
+          </div>
+          <h3 class="h5 fw-bold mb-2">Pattern Recognition</h3>
+          <p class="text-muted mb-3">AI detects attendance patterns and grade anomalies, flagging unusual trends that need attention.</p>
+          <ul class="list-unstyled small text-muted mb-0">
+            <li class="mb-1">✓ Attendance pattern detection</li>
+            <li class="mb-1">✓ Grade anomaly identification</li>
+            <li class="mb-1">✓ Statistical outlier detection</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    
+    <div class="row g-4">
+      <div class="col-lg-6">
+        <div class="ai-insight-card surface p-5 rounded-4 h-100">
+          <div class="d-flex align-items-start mb-3">
+            <div class="ai-sparkle-icon me-3" style="font-size: 40px;">
+              💡
+            </div>
+            <div class="flex-grow-1">
+              <h3 class="h5 fw-bold mb-2">Smart Insights</h3>
+              <p class="text-muted mb-0">Get actionable insights powered by AI. The system automatically analyzes student data and provides personalized recommendations for each student's academic journey.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-lg-6">
+        <div class="ai-insight-card surface p-5 rounded-4 h-100">
+          <div class="d-flex align-items-start mb-3">
+            <div class="ai-sparkle-icon me-3" style="font-size: 40px;">
+              🔔
+            </div>
+            <div class="flex-grow-1">
+              <h3 class="h5 fw-bold mb-2">Proactive Alerts</h3>
+              <p class="text-muted mb-0">Never miss a student in need. AI-generated alerts notify teachers, students, and parents automatically when intervention is needed, ensuring timely support.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- Features Section -->
 <section class="features-section py-5 my-5">
   <div class="container-fluid container-narrow">
@@ -263,6 +363,114 @@
   border: 1px solid var(--color-border);
 }
 
+/* AI Features Section Styles */
+.ai-features-section {
+  background: linear-gradient(135deg, rgba(0, 123, 255, 0.03) 0%, rgba(0, 123, 255, 0.01) 100%);
+  position: relative;
+}
+
+.ai-background-decoration {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(circle at 20% 30%, rgba(0, 123, 255, 0.05) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(0, 123, 255, 0.05) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.ai-badge {
+  background: linear-gradient(135deg, rgba(0, 123, 255, 0.1) 0%, rgba(0, 123, 255, 0.05) 100%);
+  border: 1px solid rgba(0, 123, 255, 0.2);
+  padding: 0.5rem 1.25rem;
+  border-radius: 50px;
+  color: var(--color-primary);
+  font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  animation: aiPulse 3s ease-in-out infinite;
+}
+
+@keyframes aiPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(0, 123, 255, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(0, 123, 255, 0);
+  }
+}
+
+.ai-feature-card {
+  transition: all 0.3s ease;
+  border: 1px solid var(--color-border);
+  position: relative;
+  overflow: hidden;
+}
+
+.ai-feature-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, currentColor, transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.ai-feature-card:hover::before {
+  opacity: 0.3;
+  animation: aiShimmer 2s ease-in-out infinite;
+}
+
+@keyframes aiShimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.ai-feature-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+}
+
+.ai-icon-glow {
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.ai-feature-card:hover .ai-icon-glow {
+  transform: scale(1.1);
+  box-shadow: 0 4px 16px rgba(0, 123, 255, 0.3);
+}
+
+.ai-sparkle-icon {
+  animation: aiFloat 3s ease-in-out infinite;
+}
+
+@keyframes aiFloat {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.ai-insight-card {
+  border: 1px solid var(--color-border);
+  transition: all 0.3s ease;
+  background: linear-gradient(135deg, var(--color-surface) 0%, rgba(255, 255, 255, 0.5) 100%);
+}
+
+.ai-insight-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  border-color: var(--color-primary);
+}
+
 @media (max-width: 768px) {
   .hero-section {
     padding-top: 2rem;
@@ -271,6 +479,10 @@
   
   .hero-logo {
     max-width: 150px !important;
+  }
+  
+  .ai-feature-card {
+    margin-bottom: 1.5rem;
   }
 }
 </style>

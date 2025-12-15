@@ -85,8 +85,8 @@ $teachingSections = array_filter($sections, static fn($section) => empty($sectio
                         <tbody>
                             <?php foreach ($advisorySections as $section): ?>
                                 <tr>
-                                    <td><?= htmlspecialchars($section['section_name']) ?></td>
-                                    <td><?= htmlspecialchars($section['subject_name']) ?></td>
+                                    <td><?= htmlspecialchars($section['section_name'] ?? '') ?></td>
+                                    <td><?= htmlspecialchars($section['subject_name'] ?? 'N/A') ?></td>
                                     <td><?= htmlspecialchars($section['schedule'] ?? 'TBA') ?></td>
                                     <td><?= htmlspecialchars($section['room'] ?? 'TBD') ?></td>
                                     <td class="text-end"><?= number_format($section['student_count'] ?? 0) ?></td>
@@ -147,27 +147,276 @@ $teachingSections = array_filter($sections, static fn($section) => empty($sectio
             <?php endif; ?>
         </div>
 
-        <div class="surface p-4">
-            <h2 class="h6 fw-semibold mb-3">Alerts</h2>
+        <div class="surface p-4 ai-alerts-widget">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <div class="d-flex align-items-center">
+                <div class="ai-glow-icon me-2">
+                  <svg width="24" height="24" fill="currentColor" class="text-warning">
+                    <use href="#icon-alerts"></use>
+                  </svg>
+                </div>
+                <div>
+                  <h2 class="h6 fw-bold mb-0">AI-Generated Alerts</h2>
+                  <div class="text-muted small">Intelligent monitoring</div>
+                </div>
+              </div>
+              <?php if (!empty($alerts)): ?>
+              <span class="badge bg-warning px-3 py-2"><?= count($alerts) ?></span>
+              <?php endif; ?>
+            </div>
             <?php if (empty($alerts)): ?>
-                <div class="text-muted small">No active alerts.</div>
+                <div class="text-center py-3">
+                  <svg width="48" height="48" fill="currentColor" class="text-success mb-2">
+                    <use href="#icon-check-circle"></use>
+                  </svg>
+                  <div class="text-muted small">No active alerts.</div>
+                  <div class="text-muted small mt-2">
+                    <small>Alerts are automatically generated when AI detects at-risk students.</small>
+                  </div>
+                </div>
             <?php else: ?>
                 <ul class="list-unstyled mb-0 small">
                     <?php foreach ($alerts as $alert): ?>
-                        <li class="mb-3">
-                            <div class="fw-semibold text-warning"><?= htmlspecialchars($alert['title'] ?? 'Alert') ?></div>
-                            <div><?= htmlspecialchars($alert['description'] ?? '') ?></div>
-                            <div class="text-muted">
-                                <?= htmlspecialchars($alert['student_name'] ?? 'Student') ?> • <?= htmlspecialchars($alert['section_name'] ?? 'Section') ?>
-                            </div>
-                            <div class="text-muted">
-                                <?= isset($alert['created_at']) ? date('M d, Y g:i A', strtotime($alert['created_at'])) : 'Unknown time' ?>
+                        <li class="mb-3 pb-3 border-bottom ai-alert-item">
+                            <div class="d-flex align-items-start">
+                              <div class="ai-alert-icon-small bg-<?= 
+                                ($alert['severity'] ?? 'medium') === 'high' ? 'danger' : 
+                                (($alert['severity'] ?? 'medium') === 'medium' ? 'warning' : 'info') 
+                              ?> bg-opacity-10 rounded-circle p-2 me-3">
+                                <svg width="16" height="16" fill="currentColor" class="text-<?= 
+                                  ($alert['severity'] ?? 'medium') === 'high' ? 'danger' : 
+                                  (($alert['severity'] ?? 'medium') === 'medium' ? 'warning' : 'info') 
+                                ?>">
+                                  <use href="#icon-alerts"></use>
+                                </svg>
+                              </div>
+                              <div class="flex-grow-1">
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                  <div class="fw-bold"><?= htmlspecialchars($alert['title'] ?? 'Alert') ?></div>
+                                  <span class="badge bg-<?= 
+                                    ($alert['severity'] ?? 'medium') === 'high' ? 'danger' : 
+                                    (($alert['severity'] ?? 'medium') === 'medium' ? 'warning' : 'info') 
+                                  ?>"><?= ucfirst($alert['severity'] ?? 'medium') ?></span>
+                                  <span class="badge bg-dark">AI</span>
+                                </div>
+                                <div class="text-muted small mb-1"><?= htmlspecialchars($alert['description'] ?? '') ?></div>
+                                <div class="text-muted small">
+                                    <svg width="14" height="14" fill="currentColor" class="me-1">
+                                      <use href="#icon-user"></use>
+                                    </svg>
+                                    <?= htmlspecialchars($alert['student_name'] ?? 'Student') ?> • 
+                                    <?= htmlspecialchars($alert['section_name'] ?? 'Section') ?>
+                                    <?php if (!empty($alert['subject_name'])): ?>
+                                      • <?= htmlspecialchars($alert['subject_name']) ?>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="text-muted small mt-1">
+                                    <?= isset($alert['created_at']) ? date('M d, Y g:i A', strtotime($alert['created_at'])) : 'Unknown time' ?>
+                                </div>
+                              </div>
                             </div>
                         </li>
                     <?php endforeach; ?>
                 </ul>
+                <div class="mt-3">
+                  <a href="<?= \Helpers\Url::to('/teacher/alerts') ?>" class="btn btn-sm btn-primary">
+                    <svg width="16" height="16" fill="currentColor" class="me-1">
+                      <use href="#icon-alerts"></use>
+                    </svg>
+                    View All Alerts →
+                  </a>
+                </div>
             <?php endif; ?>
         </div>
     </div>
 </div>
+
+<!-- Performance Charts Section -->
+<?php if (!empty($chart_data)): ?>
+<div class="row g-3 mb-4">
+    <!-- Class Performance Chart -->
+    <?php if (!empty($chart_data['class_performance']['labels'])): ?>
+    <div class="col-12 col-lg-6">
+      <div class="surface p-4 h-100">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h3 class="h6 fw-bold mb-0">
+            <svg width="20" height="20" fill="currentColor" class="me-2">
+              <use href="#icon-line-chart"></use>
+            </svg>
+            Class Performance by Section
+          </h3>
+        </div>
+        <div class="chart-container" style="height: 250px; position: relative;">
+          <canvas id="classPerformanceChart"></canvas>
+        </div>
+      </div>
+    </div>
+    <?php endif; ?>
+    
+    <!-- Grade Distribution Chart -->
+    <?php if (!empty($chart_data['grade_distribution']['labels'])): ?>
+    <div class="col-12 col-lg-6">
+      <div class="surface p-4 h-100">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h3 class="h6 fw-bold mb-0">
+            <svg width="20" height="20" fill="currentColor" class="me-2">
+              <use href="#icon-chart"></use>
+            </svg>
+            Grade Distribution
+          </h3>
+        </div>
+        <div class="chart-container" style="height: 250px; position: relative;">
+          <canvas id="gradeDistributionChart"></canvas>
+        </div>
+      </div>
+    </div>
+    <?php endif; ?>
+    
+    <!-- At-Risk Students Chart -->
+    <?php if (!empty($chart_data['at_risk_students']['labels'])): ?>
+    <div class="col-12">
+      <div class="surface p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h3 class="h6 fw-bold mb-0">
+            <svg width="20" height="20" fill="currentColor" class="me-2">
+              <use href="#icon-alerts"></use>
+            </svg>
+            At-Risk Students by Severity
+          </h3>
+        </div>
+        <div class="chart-container" style="height: 250px; position: relative;">
+          <canvas id="atRiskStudentsChart"></canvas>
+        </div>
+      </div>
+    </div>
+    <?php endif; ?>
+</div>
+<?php endif; ?>
+
+<style>
+.chart-container {
+  position: relative;
+  width: 100%;
+}
+</style>
+
+<?php if (!empty($chart_data)): ?>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    <?php if (!empty($chart_data['class_performance']['labels'])): ?>
+    // Class Performance Chart
+    const classPerformanceCtx = document.getElementById('classPerformanceChart');
+    if (classPerformanceCtx && typeof Chart !== 'undefined') {
+        new Chart(classPerformanceCtx, {
+            type: 'bar',
+            data: {
+                labels: <?= json_encode($chart_data['class_performance']['labels']) ?>,
+                datasets: [{
+                    label: 'Average Grade (%)',
+                    data: <?= json_encode($chart_data['class_performance']['data']) ?>,
+                    backgroundColor: 'rgba(13, 110, 253, 0.8)',
+                    borderColor: 'rgb(13, 110, 253)',
+                    borderWidth: 2,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return 'Average: ' + context.parsed.y + '%';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        min: 0,
+                        max: 100,
+                        ticks: {
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+    <?php endif; ?>
+    
+    <?php if (!empty($chart_data['grade_distribution']['labels'])): ?>
+    // Grade Distribution Chart
+    const gradeDistributionCtx = document.getElementById('gradeDistributionChart');
+    if (gradeDistributionCtx && typeof Chart !== 'undefined') {
+        new Chart(gradeDistributionCtx, {
+            type: 'doughnut',
+            data: {
+                labels: <?= json_encode($chart_data['grade_distribution']['labels']) ?>,
+                datasets: [{
+                    data: <?= json_encode($chart_data['grade_distribution']['data']) ?>,
+                    backgroundColor: <?= json_encode($chart_data['grade_distribution']['colors']) ?>,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    }
+    <?php endif; ?>
+    
+    <?php if (!empty($chart_data['at_risk_students']['labels'])): ?>
+    // At-Risk Students Chart
+    const atRiskStudentsCtx = document.getElementById('atRiskStudentsChart');
+    if (atRiskStudentsCtx && typeof Chart !== 'undefined') {
+        new Chart(atRiskStudentsCtx, {
+            type: 'bar',
+            data: {
+                labels: <?= json_encode($chart_data['at_risk_students']['labels']) ?>,
+                datasets: [{
+                    label: 'Number of Students',
+                    data: <?= json_encode($chart_data['at_risk_students']['data']) ?>,
+                    backgroundColor: <?= json_encode($chart_data['at_risk_students']['colors']) ?>,
+                    borderColor: <?= json_encode(array_map(fn($c) => str_replace('0.8', '1', $c), $chart_data['at_risk_students']['colors'])) ?>,
+                    borderWidth: 2,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                }
+            }
+        });
+    }
+    <?php endif; ?>
+});
+</script>
+<?php endif; ?>
 

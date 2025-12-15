@@ -9,6 +9,7 @@ use Controllers\StudentController;
 use Controllers\ParentController;
 use Controllers\ErrorController;
 use Controllers\GradeController;
+use Controllers\NotificationController;
 
 /** @var Router $router */
 
@@ -47,6 +48,7 @@ $router->get('/admin/logs', [AdminController::class, 'logs']);
 $router->get('/admin/sections', [AdminController::class, 'sections']);
 $router->post('/admin/create-section', [AdminController::class, 'createSection']);
 $router->post('/admin/update-section', [AdminController::class, 'updateSection']);
+$router->post('/admin/delete-section', [AdminController::class, 'deleteSection']);
 $router->post('/admin/assign-student-to-section', [AdminController::class, 'assignStudentToSection']);
 $router->get('/admin/api/section-details', [AdminController::class, 'getSectionDetails']);
 $router->get('/admin/api/unassigned-students', [AdminController::class, 'getUnassignedStudents']);
@@ -81,7 +83,6 @@ $router->get('/student/alerts', [StudentController::class, 'alerts']);
 $router->get('/student/schedule', [StudentController::class, 'schedule']);
 $router->get('/student/classes', [StudentController::class, 'myClasses']);
 $router->get('/student/view-subject', [StudentController::class, 'viewSubject']);
-$router->get('/student/resources', [StudentController::class, 'resources']);
 
 // Teacher pages
 $router->get('/teacher/grades', [TeacherController::class, 'grades']);
@@ -95,7 +96,6 @@ $router->get('/teacher/advised-sections', [TeacherController::class, 'advisedSec
 $router->get('/teacher/add-students', [TeacherController::class, 'addStudentsToSection']);
 $router->get('/teacher/assignments', [TeacherController::class, 'assignments']);
 $router->get('/teacher/attendance', [TeacherController::class, 'attendance']);
-$router->get('/teacher/student-progress', [TeacherController::class, 'studentProgress']);
 $router->get('/teacher/communication', [TeacherController::class, 'communication']);
 $router->get('/teacher/materials', [TeacherController::class, 'materials']);
 
@@ -151,4 +151,13 @@ $router->get('/error/{code}', function($code) {
 	$errorController = new ErrorController();
 	$errorController->error((int)$code);
 });
+
+// Notification API endpoints
+$router->get('/api/notifications', [NotificationController::class, 'getNotifications']);
+$router->get('/api/notifications/unread-count', [NotificationController::class, 'getUnreadCount']);
+$router->post('/api/notifications/mark-read', [NotificationController::class, 'markAsRead']);
+$router->post('/api/notifications/delete', [NotificationController::class, 'delete']);
+
+// Notifications page (for all roles)
+$router->get('/notifications', [NotificationController::class, 'index']);
 

@@ -7,6 +7,7 @@ use Core\Controller;
 use Core\Session;
 use Core\Database;
 use Helpers\Csrf;
+use Helpers\Notification;
 use PDO;
 
 class TeacherController extends Controller
@@ -53,6 +54,11 @@ class TeacherController extends Controller
             $sections = $this->getTeacherSections($pdo, (int)$teacher['id'], (int)$user['id']);
             $activities = $this->getRecentActivities($pdo, (int)$teacher['id']);
             $alerts = $this->getPendingAlerts($pdo, (int)$teacher['id']);
+            
+            // Get chart data
+            $classPerformanceData = $this->getClassPerformanceChartData($pdo, (int)$teacher['id']);
+            $gradeDistributionData = $this->getGradeDistributionChartData($pdo, (int)$teacher['id']);
+            $atRiskStudentsData = $this->getAtRiskStudentsChartData($pdo, (int)$teacher['id']);
 
             $this->view->render('teacher/dashboard', [
                 'title' => 'Teacher Dashboard',
@@ -63,6 +69,11 @@ class TeacherController extends Controller
                 'sections' => $sections,
                 'activities' => $activities,
                 'alerts' => $alerts,
+                'chart_data' => [
+                    'class_performance' => $classPerformanceData,
+                    'grade_distribution' => $gradeDistributionData,
+                    'at_risk_students' => $atRiskStudentsData,
+                ],
             ], 'layouts/dashboard');
         } catch (\Exception $e) {
             \Helpers\ErrorHandler::internalServerError('Failed to load teacher dashboard: ' . $e->getMessage());
@@ -207,11 +218,156 @@ class TeacherController extends Controller
     private function getPendingAlerts($pdo, $teacherId)
     {
         try {
-            $stmt = $pdo->prepare('\n                SELECT \n                    pa.id,\n                    pa.alert_type,\n                    pa.title,\n                    pa.description,\n                    pa.severity,\n                    pa.created_at,\n                    u.name AS student_name,\n                    sec.name AS section_name,\n                    sub.name AS subject_name\n                FROM performance_alerts pa\n                JOIN students st ON pa.student_id = st.id\n                JOIN users u ON st.user_id = u.id\n                JOIN sections sec ON pa.section_id = sec.id\n                JOIN subjects sub ON pa.subject_id = sub.id\n                WHERE pa.teacher_id = ? AND pa.status = "active"\n                ORDER BY pa.created_at DESC\n                LIMIT 5\n            ');
+            $stmt = $pdo->prepare("
+                SELECT 
+                    pa.id,
+                    pa.alert_type,
+                    pa.title,
+                    pa.description,
+                    pa.severity,
+                    pa.created_at,
+                    u.name AS student_name,
+                    sec.name AS section_name,
+                    sub.name AS subject_name
+                FROM performance_alerts pa
+                JOIN students st ON pa.student_id = st.id
+                JOIN users u ON st.user_id = u.id
+                JOIN sections sec ON pa.section_id = sec.id
+                LEFT JOIN subjects sub ON pa.subject_id = sub.id
+                WHERE pa.teacher_id = ? AND pa.status = 'active'
+                ORDER BY pa.created_at DESC
+                LIMIT 5
+            ");
             $stmt->execute([$teacherId]);
             return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
         } catch (\Throwable $e) {
             return [];
+        }
+    }
+    
+    /**
+     * Get class performance chart data
+     */
+    private function getClassPerformanceChartData($pdo, int $teacherId): array
+    {
+        try {
+            $stmt = $pdo->prepare("
+                SELECT 
+                    s.name as section_name,
+                    AVG(ROUND((g.grade_value / NULLIF(g.max_score, 0)) * 100, 2)) as avg_grade,
+                    COUNT(DISTINCT g.student_id) as student_count
+                FROM classes c
+                JOIN sections s ON c.section_id = s.id
+                LEFT JOIN grades g ON g.subject_id = c.subject_id AND g.academic_year = s.school_year
+                WHERE c.teacher_id = ? AND c.is_active = 1
+                GROUP BY s.id, s.name
+                ORDER BY avg_grade DESC
+                LIMIT 10
+            ");
+            $stmt->execute([$teacherId]);
+            $data = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            
+            $labels = [];
+            $grades = [];
+            
+            foreach ($data as $row) {
+                $labels[] = $row['section_name'];
+                $grades[] = round((float)$row['avg_grade'], 1);
+            }
+            
+            return [
+                'labels' => $labels,
+                'data' => $grades,
+            ];
+        } catch (\Exception $e) {
+            error_log("getClassPerformanceChartData error: " . $e->getMessage());
+            return ['labels' => [], 'data' => []];
+        }
+    }
+    
+    /**
+     * Get grade distribution chart data
+     */
+    private function getGradeDistributionChartData($pdo, int $teacherId): array
+    {
+        try {
+            $stmt = $pdo->prepare("
+                SELECT 
+                    CASE 
+                        WHEN ROUND((g.grade_value / NULLIF(g.max_score, 0)) * 100, 2) >= 90 THEN 'Excellent (90-100)'
+                        WHEN ROUND((g.grade_value / NULLIF(g.max_score, 0)) * 100, 2) >= 80 THEN 'Good (80-89)'
+                        WHEN ROUND((g.grade_value / NULLIF(g.max_score, 0)) * 100, 2) >= 75 THEN 'Satisfactory (75-79)'
+                        WHEN ROUND((g.grade_value / NULLIF(g.max_score, 0)) * 100, 2) >= 70 THEN 'Needs Improvement (70-74)'
+                        ELSE 'Failing (<70)'
+                    END as grade_range,
+                    COUNT(*) as count
+                FROM grades g
+                JOIN classes c ON g.subject_id = c.subject_id
+                WHERE c.teacher_id = ? AND c.is_active = 1
+                GROUP BY grade_range
+                ORDER BY 
+                    CASE grade_range
+                        WHEN 'Excellent (90-100)' THEN 1
+                        WHEN 'Good (80-89)' THEN 2
+                        WHEN 'Satisfactory (75-79)' THEN 3
+                        WHEN 'Needs Improvement (70-74)' THEN 4
+                        ELSE 5
+                    END
+            ");
+            $stmt->execute([$teacherId]);
+            $data = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            
+            $labels = [];
+            $counts = [];
+            $colors = ['rgba(25, 135, 84, 0.8)', 'rgba(13, 110, 253, 0.8)', 'rgba(255, 193, 7, 0.8)', 'rgba(255, 152, 0, 0.8)', 'rgba(220, 53, 69, 0.8)'];
+            
+            foreach ($data as $row) {
+                $labels[] = $row['grade_range'];
+                $counts[] = (int)$row['count'];
+            }
+            
+            return [
+                'labels' => $labels,
+                'data' => $counts,
+                'colors' => array_slice($colors, 0, count($labels)),
+            ];
+        } catch (\Exception $e) {
+            error_log("getGradeDistributionChartData error: " . $e->getMessage());
+            return ['labels' => [], 'data' => [], 'colors' => []];
+        }
+    }
+    
+    /**
+     * Get at-risk students chart data
+     */
+    private function getAtRiskStudentsChartData($pdo, int $teacherId): array
+    {
+        try {
+            $stmt = $pdo->prepare("
+                SELECT 
+                    COUNT(DISTINCT pa.student_id) as at_risk_count,
+                    COUNT(DISTINCT CASE WHEN pa.severity = 'high' THEN pa.student_id END) as high_risk_count,
+                    COUNT(DISTINCT CASE WHEN pa.severity = 'medium' THEN pa.student_id END) as medium_risk_count,
+                    COUNT(DISTINCT CASE WHEN pa.severity = 'low' THEN pa.student_id END) as low_risk_count
+                FROM performance_alerts pa
+                JOIN classes c ON pa.section_id = c.section_id
+                WHERE c.teacher_id = ? AND pa.status = 'active'
+            ");
+            $stmt->execute([$teacherId]);
+            $data = $stmt->fetch(\PDO::FETCH_ASSOC);
+            
+            return [
+                'labels' => ['High Risk', 'Medium Risk', 'Low Risk'],
+                'data' => [
+                    (int)($data['high_risk_count'] ?? 0),
+                    (int)($data['medium_risk_count'] ?? 0),
+                    (int)($data['low_risk_count'] ?? 0),
+                ],
+                'colors' => ['rgba(220, 53, 69, 0.8)', 'rgba(255, 193, 7, 0.8)', 'rgba(13, 110, 253, 0.8)'],
+            ];
+        } catch (\Exception $e) {
+            error_log("getAtRiskStudentsChartData error: " . $e->getMessage());
+            return ['labels' => [], 'data' => [], 'colors' => []];
         }
     }
 
@@ -239,14 +395,14 @@ class TeacherController extends Controller
                     pa.created_at,
                     pa.resolved_at,
                     u.name as student_name,
-                    s.class_name,
+                    s.name as section_name,
                     sub.name as subject_name,
                     resolver.name as resolved_by_name
                 FROM performance_alerts pa
                 JOIN students st ON pa.student_id = st.id
                 JOIN users u ON st.user_id = u.id
-                JOIN sections s ON pa.section_id = s.section_id
-                JOIN subjects sub ON pa.subject_id = sub.id
+                JOIN sections s ON pa.section_id = s.id
+                LEFT JOIN subjects sub ON pa.subject_id = sub.id
                 LEFT JOIN users resolver ON pa.resolved_by = resolver.id
                 WHERE pa.teacher_id = ?
                 ORDER BY pa.created_at DESC
@@ -848,11 +1004,40 @@ class TeacherController extends Controller
             }
 
             if (!$sectionId || !$subjectId) {
-                $sectionId = $sections[0]['section_id'];
-                $subjectId = $sections[0]['subject_id'];
+                // Find first section with a valid subject_id (not advisory-only)
+                foreach ($sections as $section) {
+                    if (!empty($section['subject_id'])) {
+                        $sectionId = $section['section_id'];
+                        $subjectId = $section['subject_id'];
+                        break;
+                    }
+                }
+                
+                // If still no valid section/subject found, show empty state
+                if (!$sectionId || !$subjectId) {
+                    $this->view->render('teacher/attendance', [
+                        'title' => 'Attendance Management',
+                        'user' => $user,
+                        'activeNav' => 'attendance',
+                        'sections' => $sections,
+                        'filters' => [
+                            'date' => $date,
+                            'section_id' => null,
+                            'subject_id' => null,
+                        ],
+                        'students' => [],
+                        'summary' => [
+                            'present' => 0,
+                            'absent' => 0,
+                            'late' => 0,
+                            'excused' => 0,
+                        ],
+                    ], 'layouts/dashboard');
+                    return;
+                }
             }
 
-            $attendanceSnapshot = $this->getAttendanceSnapshot($pdo, (int)$teacher['id'], $sectionId, $subjectId, $date);
+            $attendanceSnapshot = $this->getAttendanceSnapshot($pdo, (int)$teacher['id'], (int)$sectionId, (int)$subjectId, $date);
 
             $summary = [
                 'present' => 0,
@@ -946,9 +1131,23 @@ class TeacherController extends Controller
             
             $teacherId = (int)$teacher['id'];
             
+            // Get student and subject info for notifications
+            $stmt = $pdo->prepare('
+                SELECT s.user_id as student_user_id, u.name as student_name, sub.name as subject_name
+                FROM students s
+                JOIN users u ON s.user_id = u.id
+                CROSS JOIN subjects sub ON sub.id = ?
+                WHERE s.id = ?
+            ');
+            $stmt->execute([$subjectId, $studentId]);
+            $attendanceInfo = $stmt->fetch(\PDO::FETCH_ASSOC);
+            
             $stmt = $pdo->prepare('SELECT id FROM attendance WHERE student_id=? AND section_id=? AND subject_id=? AND attendance_date=?');
             $stmt->execute([$studentId, $sectionId, $subjectId, $date]);
             $existingId = $stmt->fetchColumn();
+            
+            $isNew = !$existingId;
+            
             if ($existingId) {
                 $stmt = $pdo->prepare('UPDATE attendance SET status=?, updated_at=NOW() WHERE id=?');
                 $stmt->execute([$status, $existingId]);
@@ -956,6 +1155,73 @@ class TeacherController extends Controller
                 $stmt = $pdo->prepare('INSERT INTO attendance (student_id, teacher_id, section_id, subject_id, attendance_date, status) VALUES (?,?,?,?,?,?)');
                 $stmt->execute([$studentId, $teacherId, $sectionId, $subjectId, $date, $status]);
             }
+            
+            // Trigger AI performance analysis after attendance entry
+            try {
+                $analyzer = new \Services\PerformanceAnalyzer($pdo);
+                $alertService = new \Services\AlertService($pdo, $analyzer);
+                
+                // Analyze student performance (especially attendance impact)
+                $academicYear = $this->getCurrentAcademicYear();
+                $quarter = $this->getCurrentQuarter();
+                
+                $analysis = $analyzer->analyzeStudent(
+                    $studentId,
+                    $sectionId,
+                    $quarter,
+                    $academicYear
+                );
+                
+                // Generate alerts if student is at risk (especially attendance-related)
+                if ($analysis && ($analysis['is_at_risk'] || ($analysis['attendance_analysis']['status'] ?? 'good') === 'poor')) {
+                    $alertService->generateAlertsForStudent($analysis);
+                }
+            } catch (\Exception $e) {
+                // Log error but don't fail attendance entry
+                error_log("AI Analysis error after attendance entry: " . $e->getMessage());
+            }
+            
+            // Notify student and parents only if absent or late (not on every attendance mark)
+            if ($attendanceInfo && in_array($status, ['absent', 'late']) && ($isNew || $status === 'absent')) {
+                $statusLabel = ucfirst($status);
+                $message = "You were marked as {$statusLabel} for {$attendanceInfo['subject_name']} on {$date}.";
+                
+                if ($attendanceInfo['student_user_id']) {
+                    Notification::create(
+                        recipientIds: (int)$attendanceInfo['student_user_id'],
+                        type: 'warning',
+                        category: 'attendance',
+                        title: "Attendance Marked: {$statusLabel}",
+                        message: $message,
+                        options: [
+                            'link' => '/student/attendance',
+                            'metadata' => [
+                                'status' => $status,
+                                'subject' => $attendanceInfo['subject_name'],
+                                'date' => $date
+                            ],
+                            'created_by' => $user['id']
+                        ]
+                    );
+                    
+                    // Notify parents for absences and repeated lates
+                    if ($status === 'absent') {
+                        Notification::createForParents(
+                            studentId: $studentId,
+                            type: 'warning',
+                            category: 'attendance',
+                            title: 'Student Absence Notice',
+                            message: "{$attendanceInfo['student_name']} was marked absent for {$attendanceInfo['subject_name']} on {$date}.",
+                            options: [
+                                'priority' => 'high',
+                                'link' => '/parent/attendance',
+                                'created_by' => $user['id']
+                            ]
+                        );
+                    }
+                }
+            }
+            
             header('Content-Type: application/json');
             echo json_encode(['success' => true]);
         } catch (\Exception $e) {
@@ -1025,20 +1291,6 @@ class TeacherController extends Controller
             http_response_code(500);
             echo json_encode(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
         }
-    }
-
-    public function studentProgress(): void
-    {
-        $user = Session::get('user');
-        if (!$user || ($user['role'] ?? '') !== 'teacher') {
-            \Helpers\ErrorHandler::forbidden('You need teacher privileges to access this page.');
-            return;
-        }
-        $this->view->render('teacher/student-progress', [
-            'title' => 'Student Progress',
-            'user' => $user,
-            'activeNav' => 'student-progress',
-        ], 'layouts/dashboard');
     }
 
     public function communication(): void
@@ -1228,48 +1480,74 @@ class TeacherController extends Controller
                 throw new \Exception('Teacher profile not found.');
             }
 
-            // Get all students handled by this teacher through their classes
+            // First, get all sections that this teacher teaches
             $stmt = $pdo->prepare('
                 SELECT DISTINCT 
-                    s.id as student_id,
-                    s.lrn,
-                    s.first_name,
-                    s.last_name,
-                    s.middle_name,
-                    CONCAT(
-                        COALESCE(s.first_name, ""), 
-                        CASE WHEN s.middle_name IS NOT NULL AND s.middle_name != "" THEN CONCAT(" ", s.middle_name) ELSE "" END,
-                        CASE WHEN s.last_name IS NOT NULL AND s.last_name != "" THEN CONCAT(" ", s.last_name) ELSE "" END
-                    ) as full_name,
-                    s.grade_level,
-                    sec.name as section_name,
-                    sec.id as section_id,
-                    GROUP_CONCAT(DISTINCT sub.name ORDER BY sub.name SEPARATOR ", ") as subjects,
-                    GROUP_CONCAT(DISTINCT c.schedule ORDER BY c.schedule SEPARATOR ", ") as schedules,
-                    COUNT(DISTINCT c.id) as total_classes
-                FROM students s
-                JOIN student_classes sc ON s.id = sc.student_id
-                JOIN classes c ON sc.class_id = c.id
-                JOIN sections sec ON c.section_id = sec.id
-                JOIN subjects sub ON c.subject_id = sub.id
-                WHERE c.teacher_id = ? AND c.is_active = 1 AND sc.status = "enrolled"
-                GROUP BY s.id, s.lrn, s.first_name, s.last_name, s.middle_name, s.grade_level, sec.name, sec.id
-                ORDER BY s.grade_level, s.last_name, s.first_name
+                    sec.id,
+                    sec.name,
+                    sec.grade_level
+                FROM sections sec
+                JOIN classes c ON sec.id = c.section_id
+                WHERE c.teacher_id = ? AND c.is_active = 1 AND sec.is_active = 1
+                ORDER BY sec.grade_level, sec.name
             ');
             $stmt->execute([$teacher['id']]);
-            $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
+            $teacherSections = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Build section options for filter
             $sectionOptions = [];
-            foreach ($students as $row) {
-                $sectionId = (int)($row['section_id'] ?? 0);
-                if ($sectionId && !isset($sectionOptions[$sectionId])) {
-                    $sectionOptions[$sectionId] = $row['section_name'] ?? '';
-                }
+            $sectionIds = [];
+            foreach ($teacherSections as $section) {
+                $sectionId = (int)$section['id'];
+                $sectionOptions[$sectionId] = $section['name'];
+                $sectionIds[] = $sectionId;
             }
+
+            // Get all students from sections that this teacher teaches
+            // Students are in sections (s.section_id) that have classes taught by this teacher
+            if (empty($sectionIds)) {
+                $students = [];
+            } else {
+                $placeholders = implode(',', array_fill(0, count($sectionIds), '?'));
+                $stmt = $pdo->prepare("
+                    SELECT DISTINCT 
+                        s.id as student_id,
+                        s.lrn,
+                        s.first_name,
+                        s.last_name,
+                        s.middle_name,
+                        CONCAT(
+                            COALESCE(s.first_name, ''), 
+                            CASE WHEN s.middle_name IS NOT NULL AND s.middle_name != '' THEN CONCAT(' ', s.middle_name) ELSE '' END,
+                            CASE WHEN s.last_name IS NOT NULL AND s.last_name != '' THEN CONCAT(' ', s.last_name) ELSE '' END
+                        ) as full_name,
+                        s.grade_level,
+                        sec.name as section_name,
+                        sec.id as section_id,
+                        COALESCE(GROUP_CONCAT(DISTINCT sub.name ORDER BY sub.name SEPARATOR ', '), '') as subjects,
+                        COALESCE(GROUP_CONCAT(DISTINCT c.schedule ORDER BY c.schedule SEPARATOR ', '), '') as schedules,
+                        COUNT(DISTINCT c.id) as total_classes
+                    FROM students s
+                    JOIN sections sec ON s.section_id = sec.id
+                    LEFT JOIN classes c ON sec.id = c.section_id AND c.teacher_id = ? AND c.is_active = 1
+                    LEFT JOIN subjects sub ON c.subject_id = sub.id
+                    WHERE sec.id IN ($placeholders)
+                    GROUP BY s.id, s.lrn, s.first_name, s.last_name, s.middle_name, s.grade_level, sec.name, sec.id
+                    ORDER BY s.grade_level, s.last_name, s.first_name
+                ");
+                $params = array_merge([$teacher['id']], $sectionIds);
+                $stmt->execute($params);
+                $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            }
+
+            // Calculate statistics BEFORE filtering
+            $allGradeLevels = array_filter(array_unique(array_column($students, 'grade_level')));
+            $allSections = array_filter(array_unique(array_column($students, 'section_name')));
 
             $sectionFilter = isset($_GET['section']) ? (int)$_GET['section'] : null;
             $search = trim((string)($_GET['q'] ?? ''));
 
+            // Apply filters
             if ($sectionFilter) {
                 $students = array_values(array_filter($students, static function ($student) use ($sectionFilter) {
                     return (int)($student['section_id'] ?? 0) === $sectionFilter;
@@ -1283,7 +1561,7 @@ class TeacherController extends Controller
                 }));
             }
 
-            // Get statistics
+            // Get statistics after filtering
             $totalStudents = count($students);
             $gradeLevels = array_unique(array_column($students, 'grade_level'));
             $filteredSections = array_unique(array_column($students, 'section_name'));
@@ -1295,9 +1573,9 @@ class TeacherController extends Controller
                 'students' => $students,
                 'statistics' => [
                     'total_students' => $totalStudents,
-                    'grade_levels' => count($gradeLevels),
-                    'sections' => count($filteredSections),
-                    'grade_levels_list' => $gradeLevels,
+                    'grade_levels' => count($allGradeLevels), // Show all grade levels, not just filtered
+                    'sections' => count($allSections), // Show all sections, not just filtered
+                    'grade_levels_list' => $allGradeLevels,
                     'sections_list' => $sectionOptions,
                     'active_section_filter' => $sectionFilter,
                     'search_term' => $search,
@@ -2192,6 +2470,45 @@ class TeacherController extends Controller
 
         } catch (\Exception $e) {
             \Helpers\ErrorHandler::internalServerError('Failed to load teaching loads: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Get current academic year
+     */
+    private function getCurrentAcademicYear(): string
+    {
+        $month = (int)date('n');
+        $year = (int)date('Y');
+        
+        // Academic year typically runs from June to May
+        if ($month >= 6) {
+            return $year . '-' . ($year + 1);
+        } else {
+            return ($year - 1) . '-' . $year;
+        }
+    }
+    
+    /**
+     * Get current quarter based on month
+     */
+    private function getCurrentQuarter(): int
+    {
+        $month = (int)date('n');
+        
+        // Quarter 1: June-August (months 6-8)
+        // Quarter 2: September-November (months 9-11)
+        // Quarter 3: December-February (months 12, 1, 2)
+        // Quarter 4: March-May (months 3-5)
+        
+        if ($month >= 6 && $month <= 8) {
+            return 1;
+        } elseif ($month >= 9 && $month <= 11) {
+            return 2;
+        } elseif ($month === 12 || $month <= 2) {
+            return 3;
+        } else {
+            return 4;
         }
     }
 }

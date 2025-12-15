@@ -13,10 +13,48 @@ $attendancePercentage = $attendancePercentage ?? 0;
 ?>
 
 <!-- Parent Profile Header -->
-<div class="dashboard-header">
-  <div>
-    <h1 class="h3 mb-1 text-primary">Child's Profile</h1>
-    <p class="text-muted mb-0">View your child's information and academic performance</p>
+<div class="dashboard-header mb-4">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div>
+      <h1 class="h3 mb-1 text-primary">Child's Profile</h1>
+      <p class="text-muted mb-0">View your child's information and academic performance</p>
+    </div>
+    <?php 
+    $studentId = $student_data['id'] ?? 0;
+    $currentAcademicYear = $student_data['school_year'] ?? date('Y') . '-' . (date('Y') + 1);
+    $currentQuarter = 1; // Default to first quarter
+    if ($studentId > 0): ?>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="<?= \Helpers\Url::to('/grades/sf10?student_id=' . $studentId . '&quarter=' . $currentQuarter . '&academic_year=' . urlencode($currentAcademicYear)) ?>" 
+         class="btn btn-outline-primary" target="_blank">
+        <svg class="icon me-2" width="16" height="16" fill="currentColor">
+          <use href="#icon-download"></use>
+        </svg>
+        Download SF10
+      </a>
+      <a href="<?= \Helpers\Url::to('/grades/sf10/view?student_id=' . $studentId . '&quarter=' . $currentQuarter . '&academic_year=' . urlencode($currentAcademicYear)) ?>" 
+         class="btn btn-outline-secondary" target="_blank">
+        <svg class="icon me-2" width="16" height="16" fill="currentColor">
+          <use href="#icon-report"></use>
+        </svg>
+        Print SF10
+      </a>
+      <a href="<?= \Helpers\Url::to('/grades/sf9?student_id=' . $studentId . '&academic_year=' . urlencode($currentAcademicYear)) ?>" 
+         class="btn btn-primary" target="_blank">
+        <svg class="icon me-2" width="16" height="16" fill="currentColor">
+          <use href="#icon-download"></use>
+        </svg>
+        Download SF9
+      </a>
+      <a href="<?= \Helpers\Url::to('/grades/sf9/view?student_id=' . $studentId . '&academic_year=' . urlencode($currentAcademicYear)) ?>" 
+         class="btn btn-outline-primary" target="_blank">
+        <svg class="icon me-2" width="16" height="16" fill="currentColor">
+          <use href="#icon-report"></use>
+        </svg>
+        Print SF9
+      </a>
+    </div>
+    <?php endif; ?>
   </div>
 </div>
 

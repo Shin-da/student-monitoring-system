@@ -57,6 +57,32 @@
   border-right: 1px solid var(--sidebar-border);
 }
 
+/* Prevent large background icons/logos from covering sidebar content */
+/* Hide any pseudo-elements that might be adding large background icons */
+body[data-role="admin"] .sidebar::before,
+body[data-role="admin"] .sidebar::after,
+body[data-role="teacher"] .sidebar::before,
+body[data-role="teacher"] .sidebar::after,
+body[data-role="student"] .sidebar::before,
+body[data-role="student"] .sidebar::after,
+[data-role="admin"] .sidebar::before,
+[data-role="admin"] .sidebar::after,
+[data-role="teacher"] .sidebar::before,
+[data-role="teacher"] .sidebar::after,
+[data-role="student"] .sidebar::before,
+[data-role="student"] .sidebar::after {
+  content: none !important;
+  display: none !important;
+  background: none !important;
+  background-image: none !important;
+}
+
+/* Ensure sidebar content is above any background elements */
+.sidebar > * {
+  position: relative;
+  z-index: 1;
+}
+
 /* Dashboard container */
 .dashboard-container {
   display: flex;
@@ -151,19 +177,42 @@
 }
 
 .sidebar-brand-icon {
-  width: 32px;
-  height: 32px;
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  max-width: 32px !important;
+  min-height: 32px !important;
+  max-height: 32px !important;
   flex-shrink: 0;
   transition: var(--sidebar-transition);
+  overflow: hidden;
+  position: relative;
 }
 
-/* Logo image styling */
+/* Logo image styling - Force size constraints */
 .sidebar-brand-icon img,
-.sidebar-brand img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  display: block;
+.sidebar-brand img,
+.sidebar-header img,
+.sidebar .sidebar-brand-icon img,
+.sidebar .sidebar-brand img {
+  width: 32px !important;
+  height: 32px !important;
+  max-width: 32px !important;
+  max-height: 32px !important;
+  min-width: 32px !important;
+  min-height: 32px !important;
+  object-fit: contain !important;
+  display: block !important;
+  flex-shrink: 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* Prevent any image in sidebar header from growing */
+.sidebar-header img {
+  width: 32px !important;
+  height: 32px !important;
+  max-width: 32px !important;
+  max-height: 32px !important;
 }
 
 /* Ensure logo is visible in both light and dark modes */
@@ -369,10 +418,11 @@
   left: -0.75rem;
   top: 50%;
   transform: translateY(-50%);
-  width: 4px;
+  width: 5px;
   height: 20px;
   background: white;
   border-radius: 2px;
+  z-index: 1;
 }
 
 /* Main Navigation Links */
@@ -408,9 +458,10 @@
   left: 0;
   top: 0;
   bottom: 0;
-  width: 4px;
+  width: 5px;
   background: white;
   border-radius: 0 2px 2px 0;
+  z-index: 1;
 }
 
 .nav-link:focus {
@@ -460,8 +511,8 @@
   justify-content: center;
   gap: 0.5rem;
   padding: 0.75rem;
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(30, 30, 30, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--sidebar-text);
   border-radius: 0.5rem;
   transition: var(--sidebar-transition);
@@ -470,8 +521,8 @@
 }
 
 .sidebar-logout:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(40, 40, 40, 0.9);
+  border-color: rgba(255, 255, 255, 0.2);
   color: var(--sidebar-text-hover);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);

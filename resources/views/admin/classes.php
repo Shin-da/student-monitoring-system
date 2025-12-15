@@ -414,6 +414,8 @@ $success = $success ?? null;
 
 <!-- Include the time management JavaScript -->
 <script src="<?= \Helpers\Url::to('/assets/admin-time-management.js') ?>"></script>
+<!-- Include the teacher dropdown refresh utility -->
+<script src="<?= \Helpers\Url::to('/assets/teacher-dropdown-refresh.js') ?>"></script>
 
 <?php
 // Prepare classes data for JavaScript
@@ -422,14 +424,14 @@ $classesData = array_map(function($class) {
         'id' => $class['id'],
         'section_id' => $class['section_id'],
         'subject_id' => $class['subject_id'],
-        'semester' => $class['semester'],
-        'school_year' => $class['school_year'],
+        'semester' => $class['semester'] ?? '1st',
+        'school_year' => $class['school_year'] ?? '2025-2026',
         'section_name' => $class['section_name'],
         'subject_name' => $class['subject_name'],
         'subject_code' => $class['subject_code'],
         'teacher_name' => $class['teacher_name'],
         'schedule' => $class['schedule'],
-        'room' => $class['room']
+        'room' => $class['room'] ?? $class['class_room'] ?? ''
     ];
 }, $classes);
 ?>
@@ -504,7 +506,8 @@ function loadTeacherSchedule() {
     const container = document.getElementById('teacherScheduleContainer');
     const display = document.getElementById('teacherScheduleDisplay');
     
-    if (!teacherId) {
+    // Treat empty string or "0" as no valid teacher selected
+    if (!teacherId || teacherId === '0') {
         container.style.display = 'none';
         return;
     }
@@ -760,6 +763,149 @@ function displayScheduleModal(schedules) {
 function refreshScheduleData() {
     location.reload();
 }
+
+// Dynamically refresh the teacher dropdown from the latest database state
+async function refreshTeacherDropdown() {
+    const select = document.getElementById('teacher_id');
+    if (!select) return;
+
+    // Use the reusable utility function if available, otherwise fallback to manual refresh
+    if (typeof window.refreshTeacherDropdown === 'function') {
+        await window.refreshTeacherDropdown(select, {
+            placeholder: 'Select Teacher',
+            onSuccess: function(data) {
+                console.log('Teacher dropdown refreshed successfully. Loaded', data.count, 'teachers.');
+            },
+            onError: function(err) {
+                console.error('Error refreshing teacher dropdown:', err);
+            }
+        });
+    } else {
+        // Fallback to manual refresh if utility is not loaded
+        const base = (window.__BASE_PATH__ || '').replace(/\/$/, '');
+        const url = base + '/api/admin/list-teachers.php';
+
+        try {
+            const response = await fetch(url, { cache: 'no-cache' });
+            if (!response.ok) {
+                console.error('Failed to load teachers list:', response.status);
+                return;
+            }
+            const data = await response.json();
+            if (!data.success || !Array.isArray(data.teachers)) {
+                console.error('Unexpected teachers API response:', data);
+                return;
+            }
+
+            const currentValue = select.value;
+
+            // Rebuild options
+            select.innerHTML = '<option value=\"\">Select Teacher</option>';
+            data.teachers.forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t.id;
+                const department = t.department || 'General Education';
+                opt.textContent = `${t.name} (${department})`;
+                select.appendChild(opt);
+            });
+
+            // Restore previous selection if still present
+            if (currentValue && Array.from(select.options).some(o => o.value === currentValue)) {
+                select.value = currentValue;
+            }
+        } catch (err) {
+            console.error('Error refreshing teacher dropdown:', err);
+        }
+    }
+}
+
+// Ensure dropdown is always up-to-date when page loads and when modal opens
+document.addEventListener('DOMContentLoaded', function () {
+    // Initial refresh on page load
+    refreshTeacherDropdown();
+
+    // Also refresh whenever the "Add New Class" modal is opened
+    const modalEl = document.getElementById('createClassModal');
+    if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        modalEl.addEventListener('show.bs.modal', function () {
+            refreshTeacherDropdown();
+        });
+    }
+
+    // Auto-refresh when a new teacher/adviser is created (listens for custom event)
+    const teacherSelect = document.getElementById('teacher_id');
+    if (teacherSelect) {
+        // Use the reusable utility function if available
+        if (typeof window.autoRefreshTeacherDropdown === 'function') {
+            window.autoRefreshTeacherDropdown(teacherSelect, {
+                placeholder: 'Select Teacher',
+                onSuccess: function(data) {
+                    console.log('Teacher dropdown auto-refreshed. Loaded', data.count, 'teachers.');
+                }
+            });
+        } else {
+            // Fallback: manually listen for the event
+            document.addEventListener('teacherCreated', function(event) {
+                if (event.detail && (event.detail.role === 'teacher' || event.detail.role === 'adviser')) {
+                    console.log('New teacher/adviser created, refreshing dropdown...', event.detail);
+                    refreshTeacherDropdown();
+                }
+            });
+        }
+    }
+
+    // Add form submission validation to prevent saving occupied schedules
+    const createClassForm = document.getElementById('createClassForm');
+    if (createClassForm) {
+        createClassForm.addEventListener('submit', async function(e) {
+            const daySelect = document.getElementById('day_of_week');
+            const startTimeSelect = document.getElementById('start_time');
+            const startTimeInput = document.getElementById('start_time_input');
+            const endTimeSelect = document.getElementById('end_time');
+            const endTimeInput = document.getElementById('end_time_input');
+            
+            const day = daySelect.value;
+            const startTimeRaw = startTimeSelect.value || startTimeInput.value;
+            const endTimeRaw = endTimeSelect.value || endTimeInput.value;
+
+            if (day && startTimeRaw && endTimeRaw) {
+                // Check if time management instance exists
+                if (window.timeManagement && typeof window.timeManagement.loadAllTeachersSchedulesForDay === 'function') {
+                    await window.timeManagement.loadAllTeachersSchedulesForDay(day);
+                    const occupiedTimes = window.timeManagement.getOccupiedTimesForDay(day);
+                    
+                    const startTime = window.timeManagement.ensureSeconds(window.timeManagement.normalizeTimeInput(startTimeRaw));
+                    const endTime = window.timeManagement.ensureSeconds(window.timeManagement.normalizeTimeInput(endTimeRaw));
+                    
+                    // Check for conflicts
+                    const conflicts = occupiedTimes.filter(occ => {
+                        const occStart = window.timeManagement.timeToMinutes(occ.start);
+                        const occEnd = window.timeManagement.timeToMinutes(occ.end);
+                        const newStart = window.timeManagement.timeToMinutes(startTime);
+                        const newEnd = window.timeManagement.timeToMinutes(endTime);
+                        
+                        // Overlap: new start < existing end AND new end > existing start
+                        return newStart < occEnd && newEnd > occStart;
+                    });
+
+                    if (conflicts.length > 0) {
+                        e.preventDefault();
+                        const conflictTeachers = conflicts
+                            .map(occ => occ.teacher_name || `Teacher ID ${occ.teacher_id}`)
+                            .filter((name, idx, arr) => arr.indexOf(name) === idx)
+                            .join(', ');
+                        
+                        window.timeManagement.showAlert(
+                            `⚠️ Cannot save: This time slot is already occupied by ${conflictTeachers}. Please choose a different time.`,
+                            'danger'
+                        );
+                        return false;
+                    }
+                }
+            }
+        });
+    }
+});
 
 // Edit class (placeholder)
 function editClass(classId) {

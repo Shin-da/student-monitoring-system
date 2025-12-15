@@ -1,0 +1,909 @@
+{
+  "feature_map": {
+    "create_user": {
+      "description": "Admin creates user (teacher/adviser/student/parent) via API or UI",
+      "tables_written": ["users"],
+      "tables_conditionally_written": {
+        "students": "if role = 'student'",
+        "teachers": "if role = 'teacher' or 'adviser'",
+        "parents": "if role = 'parent' (table may not exist)"
+      },
+      "columns_updated": {
+        "users": ["role", "email", "password_hash", "name", "status", "created_at", "updated_at"],
+        "students": ["user_id", "lrn", "grade_level", "section_id", "enrollment_status", "status"],
+        "teachers": ["user_id", "employee_id", "department", "specialization", "is_adviser", "hire_date"],
+        "parents": ["user_id", "relationship", "created_at"]
+      },
+      "tables_read": ["users", "teachers"],
+      "foreign_keys_used": ["students.user_id → users.id", "teachers.user_id → users.id"],
+      "relationships_required": [
+        "users.id must exist before students/teachers/parents can reference it",
+        "teachers.user_id must be unique (enforced by UNIQUE constraint)"
+      ],
+      "flow_status": "CENTRALIZED",
+      "issues": [
+        "When creating teacher/adviser, TeacherProfileHelper::save() is called, which properly creates teachers record",
+        "When creating student, students record is created but section_id is NULL initially",
+        "Parent table may not exist - code handles this gracefully",
+        "No foreign key constraint on students.user_id → users.id in schema (only in old backup)",
+        "No foreign key constraint on teachers.user_id → users.id in schema"
+      ],
+      "used_by": ["user approval workflow", "admin user management", "registration system"]
+    },
+    "approve_user": {
+      "description": "Admin approves pending user registration",
+      "tables_written": ["users", "students", "teachers", "user_requests"],
+      "columns_updated": {
+        "users": ["status", "approved_by", "approved_at"],
+        "students": ["user_id", "lrn", "grade_level", "section_id"],
+        "teachers": ["user_id", "is_adviser"],
+        "user_requests": ["status", "processed_at", "processed_by"]
+      },
+      "tables_read": ["users", "user_requests"],
+      "foreign_keys_used": ["students.user_id → users.id", "teachers.user_id → users.id", "users.approved_by → users.id"],
+      "relationships_required": [
+        "users.id must exist",
+        "If role = 'student', students record is created with default section_id = 1",
+        "If role = 'teacher'/'adviser', teachers record is created via TeacherProfileHelper"
+      ],
+      "flow_status": "CENTRALIZED",
+      "issues": [
+        "Default section_id = 1 may not exist",
+        "For 'adviser' role, code tries to insert into 'advisers' table which doesn't exist in schema"
+      ],
+      "used_by": ["admin user management", "registration approval workflow"]
+    },
+    "register_student": {
+      "description": "Admin registers student with full details (via registerStudent.php)",
+      "tables_written": ["users", "students"],
+      "columns_updated": {
+        "users": ["role", "email", "password_hash", "name", "status", "approved_by", "approved_at"],
+        "students": ["user_id", "lrn", "first_name", "last_name", "middle_name", "grade_level", "section_id", "school_year", "enrollment_status", "status"]
+      },
+      "tables_read": ["users", "sections", "students"],
+      "foreign_keys_used": ["students.user_id → users.id", "students.section_id → sections.id"],
+      "relationships_required": [
+        "sections.id must exist and be active",
+        "Section capacity must not be exceeded",
+        "users.id must exist before students can reference it"
+      ],
+      "flow_status": "CENTRALIZED",
+      "issues": [
+        "No foreign key constraint on students.section_id → sections.id in schema",
+        "No foreign key constraint on students.user_id → users.id in schema"
+      ],
+      "used_by": ["admin student registration", "bulk student import"]
+    },
+    "create_teacher": {
+      "description": "Admin creates teacher/adviser account",
+      "tables_written": ["users", "teachers"],
+      "columns_updated": {
+        "users": ["role", "email", "password_hash", "name", "status"],
+        "teachers": ["user_id", "employee_id", "department", "specialization", "is_adviser", "hire_date"]
+      },
+      "tables_read": ["users", "teachers"],
+      "foreign_keys_used": ["teachers.user_id → users.id"],
+      "relationships_required": [
+        "users.id must exist before teachers can reference it",
+        "teachers.user_id must be unique"
+      ],
+      "flow_status": "CENTRALIZED",
+      "issues": [
+        "No foreign key constraint on teachers.user_id → users.id in schema",
+        "If user role = 'teacher' but teachers record missing, dropdowns and class assignment will fail"
+      ],
+      "used_by": ["admin user management", "class creation", "adviser assignment", "teacher dropdowns"]
+    },
+    "create_section": {
+      "description": "Admin/Teacher creates a new section (class)",
+      "tables_written": ["sections"],
+      "columns_updated": {
+        "sections": ["name", "grade_level", "room", "max_students", "school_year", "description", "adviser_id", "is_active", "created_by"]
+      },
+      "tables_read": ["sections"],
+      "foreign_keys_used": ["sections.adviser_id → users.id"],
+      "relationships_required": [
+        "If adviser_id is set, users.id must exist and user must have role 'teacher' or 'adviser'"
+      ],
+      "flow_status": "CENTRALIZED",
+      "issues": [
+        "No foreign key constraint on sections.adviser_id → users.id in schema",
+        "adviser_id references users.id directly, not teachers.id - this is correct but inconsistent with other patterns",
+        "Some code paths create dynamic per-section tables (section_*) which is not in main schema"
+      ],
+      "used_by": ["admin section management", "student enrollment", "class creation"]
+    },
+    "assign_adviser": {
+      "description": "Admin assigns teacher as section adviser",
+      "tables_written": ["sections", "teachers", "users", "audit_logs"],
+      "columns_updated": {
+        "sections": ["adviser_id"],
+        "teachers": ["is_adviser"],
+        "users": ["role"],
+        "audit_logs": ["user_id", "action", "target_type", "target_id", "details"]
+      },
+      "tables_read": ["sections", "users", "teachers"],
+      "foreign_keys_used": ["sections.adviser_id → users.id", "teachers.user_id → users.id", "audit_logs.user_id → users.id"],
+      "relationships_required": [
+        "users.id must exist",
+        "teachers.user_id must match users.id",
+        "If user role = 'teacher', it's updated to 'adviser'",
+        "teachers.is_adviser is set to 1"
+      ],
+      "flow_status": "CENTRALIZED",
+      "issues": [
+        "No foreign key constraint on sections.adviser_id → users.id",
+        "No foreign key constraint on teachers.user_id → users.id",
+        "If teachers record doesn't exist for user, UPDATE teachers SET is_adviser = 1 will fail silently or error"
+      ],
+      "used_by": ["admin section management", "teacher dashboard (advisory sections)", "section management"]
+    },
+    "create_class": {
+      "description": "Admin creates class (assigns teacher to teach subject in section)",
+      "tables_written": ["classes", "teacher_schedules", "student_classes"],
+      "columns_updated": {
+        "classes": ["section_id", "subject_id", "teacher_id", "school_year", "semester", "schedule", "room", "is_active"],
+        "teacher_schedules": ["teacher_id", "day_of_week", "start_time", "end_time", "class_id"],
+        "student_classes": ["student_id", "class_id", "status"]
+      },
+      "tables_read": ["sections", "subjects", "teachers", "users", "classes", "students"],
+      "foreign_keys_used": [
+        "classes.section_id → sections.id",
+        "classes.subject_id → subjects.id",
+        "classes.teacher_id → teachers.id",
+        "teacher_schedules.teacher_id → teachers.id",
+        "teacher_schedules.class_id → classes.id",
+        "student_classes.student_id → students.id",
+        "student_classes.class_id → classes.id"
+      ],
+      "relationships_required": [
+        "sections.id must exist",
+        "subjects.id must exist",
+        "teachers.id must exist (not users.id!)",
+        "Unique constraint: (section_id, subject_id, teacher_id, school_year) prevents duplicates",
+        "All students in section are auto-enrolled in new class via student_classes"
+      ],
+      "flow_status": "CENTRALIZED",
+      "issues": [
+        "No foreign key constraints defined in schema for classes table",
+        "No foreign key constraints for teacher_schedules",
+        "No foreign key constraints for student_classes",
+        "If teacher_id doesn't exist in teachers table, class creation will fail",
+        "Code resolves teacher_id from users.id via teachers table, which is correct"
+      ],
+      "used_by": ["admin class management", "teacher dashboard", "student schedule", "grade encoding"]
+    },
+    "enroll_student": {
+      "description": "Admin/Teacher enrolls student in section",
+      "tables_written": ["students", "student_classes"],
+      "columns_updated": {
+        "students": ["section_id"],
+        "student_classes": ["student_id", "class_id", "status"]
+      },
+      "tables_read": ["students", "sections", "classes"],
+      "foreign_keys_used": [
+        "students.section_id → sections.id",
+        "student_classes.student_id → students.id",
+        "student_classes.class_id → classes.id"
+      ],
+      "relationships_required": [
+        "students.id must exist",
+        "sections.id must exist and be active",
+        "Section capacity must not be exceeded",
+        "All active classes in section are auto-enrolled via student_classes"
+      ],
+      "flow_status": "CENTRALIZED",
+      "issues": [
+        "No foreign key constraint on students.section_id → sections.id",
+        "No foreign key constraints for student_classes",
+        "If student is moved to different section, old student_classes entries are deleted but new ones may not be created if classes don't exist"
+      ],
+      "used_by": ["admin student management", "teacher add student to section", "student assignment"]
+    },
+    "teacher_dashboard": {
+      "description": "Teacher views their classes, sections, and students",
+      "tables_read": [
+        "users",
+        "teachers",
+        "classes",
+        "sections",
+        "subjects",
+        "students",
+        "student_classes",
+        "attendance",
+        "assignments"
+      ],
+      "columns_read": {
+        "classes": ["id", "section_id", "subject_id", "teacher_id", "schedule", "room"],
+        "sections": ["id", "name", "grade_level", "room", "adviser_id"],
+        "subjects": ["id", "name", "code"],
+        "students": ["id", "user_id", "section_id"],
+        "student_classes": ["student_id", "class_id", "status"],
+        "attendance": ["student_id", "section_id", "subject_id"],
+        "assignments": ["id", "teacher_id", "section_id", "subject_id"]
+      },
+      "foreign_keys_used": [
+        "teachers.user_id → users.id",
+        "classes.teacher_id → teachers.id",
+        "classes.section_id → sections.id",
+        "classes.subject_id → subjects.id",
+        "sections.adviser_id → users.id",
+        "students.section_id → sections.id",
+        "student_classes.student_id → students.id",
+        "student_classes.class_id → classes.id"
+      ],
+      "relationships_required": [
+        "teachers.user_id must match logged-in user's id",
+        "classes.teacher_id must exist in teachers table",
+        "If teacher is adviser, sections.adviser_id must match user.id"
+      ],
+      "flow_status": "CENTRALIZED",
+      "issues": [
+        "If teachers record doesn't exist for user, dashboard will fail",
+        "If classes reference non-existent teachers.id, joins will fail",
+        "Advisory sections query checks sections.adviser_id = user.id, which is correct"
+      ],
+      "used_by": ["teacher home page", "class management", "student list"]
+    },
+    "student_dashboard": {
+      "description": "Student views their schedule, grades, and academic stats",
+      "tables_read": [
+        "users",
+        "students",
+        "sections",
+        "classes",
+        "subjects",
+        "student_classes",
+        "grades",
+        "attendance",
+        "teachers",
+        "quarterly_grades_view",
+        "final_grades_view"
+      ],
+      "columns_read": {
+        "students": ["id", "user_id", "section_id", "grade_level", "school_year"],
+        "sections": ["id", "name", "room"],
+        "classes": ["id", "section_id", "subject_id", "teacher_id", "schedule", "room"],
+        "subjects": ["id", "name", "code"],
+        "grades": ["student_id", "section_id", "subject_id", "grade_type", "quarter", "grade_value", "max_score"],
+        "attendance": ["student_id", "section_id", "subject_id", "attendance_date", "status"]
+      },
+      "foreign_keys_used": [
+        "students.user_id → users.id",
+        "students.section_id → sections.id",
+        "classes.section_id → sections.id",
+        "classes.subject_id → subjects.id",
+        "classes.teacher_id → teachers.id",
+        "grades.student_id → students.id",
+        "grades.section_id → sections.id",
+        "grades.subject_id → subjects.id",
+        "grades.teacher_id → teachers.id"
+      ],
+      "relationships_required": [
+        "students.user_id must match logged-in user's id",
+        "students.section_id must exist (or dashboard shows empty state)",
+        "If section_id exists, classes must be linked via student_classes or directly via section_id"
+      ],
+      "flow_status": "CENTRALIZED",
+      "issues": [
+        "If student has no section_id, dashboard shows empty state (correct behavior)",
+        "If classes exist but student_classes entries missing, classes won't show",
+        "Grade calculations use views (quarterly_grades_view, final_grades_view) which depend on grades table structure"
+      ],
+      "used_by": ["student home page", "grade viewing", "schedule viewing"]
+    },
+    "submit_grade": {
+      "description": "Teacher submits grade for student",
+      "tables_written": ["grades"],
+      "columns_updated": {
+        "grades": ["student_id", "section_id", "subject_id", "teacher_id", "grade_type", "quarter", "academic_year", "grade_value", "max_score", "description", "remarks", "graded_at"]
+      },
+      "tables_read": ["teachers", "users", "students", "classes"],
+      "foreign_keys_used": [
+        "grades.student_id → students.id",
+        "grades.section_id → sections.id",
+        "grades.subject_id → subjects.id",
+        "grades.teacher_id → teachers.id",
+        "teachers.user_id → users.id"
+      ],
+      "relationships_required": [
+        "teachers.user_id must match logged-in user's id",
+        "students.id must exist",
+        "students.section_id must exist (or provided in input)",
+        "classes record must exist for (section_id, subject_id, teacher_id) to verify permission",
+        "teacher_id must be from teachers table, not users table"
+      ],
+      "flow_status": "CENTRALIZED",
+      "issues": [
+        "No foreign key constraints on grades table in schema",
+        "If students.section_id is NULL, code tries to get it from students table",
+        "Permission check uses classes table to verify teacher has access to section/subject combination"
+      ],
+      "used_by": ["teacher grade encoding", "grade management"]
+    },
+    "view_grades": {
+      "description": "Student/Teacher views grades",
+      "tables_read": [
+        "grades",
+        "students",
+        "users",
+        "sections",
+        "subjects",
+        "teachers",
+        "quarterly_grades_view",
+        "final_grades_view"
+      ],
+      "columns_read": {
+        "grades": ["id", "student_id", "section_id", "subject_id", "teacher_id", "grade_type", "quarter", "academic_year", "grade_value", "max_score", "description"],
+        "quarterly_grades_view": ["student_id", "section_id", "subject_id", "quarter", "ww_average", "pt_average", "qe_average"],
+        "final_grades_view": ["student_id", "section_id", "subject_id", "quarter", "final_grade_without_attendance", "status_without_attendance"]
+      },
+      "foreign_keys_used": [
+        "grades.student_id → students.id",
+        "grades.section_id → sections.id",
+        "grades.subject_id → subjects.id",
+        "grades.teacher_id → teachers.id",
+        "students.user_id → users.id"
+      ],
+      "relationships_required": [
+        "grades must reference valid students, sections, subjects, teachers",
+        "Views depend on grades table structure and subjects table for percentages"
+      ],
+      "flow_status": "CENTRALIZED",
+      "issues": [
+        "Views may fail if foreign key relationships are broken",
+        "Grade calculations use subjects.ww_percent, pt_percent, qe_percent, attendance_percent"
+      ],
+      "used_by": ["student grades page", "teacher grade management", "report cards"]
+    },
+    "record_attendance": {
+      "description": "Teacher records student attendance",
+      "tables_written": ["attendance"],
+      "columns_updated": {
+        "attendance": ["student_id", "teacher_id", "section_id", "subject_id", "attendance_date", "status", "remarks"]
+      },
+      "tables_read": ["teachers", "users", "students", "attendance"],
+      "foreign_keys_used": [
+        "attendance.student_id → students.id",
+        "attendance.teacher_id → teachers.id",
+        "attendance.section_id → sections.id",
+        "attendance.subject_id → subjects.id"
+      ],
+      "relationships_required": [
+        "teachers.user_id must match logged-in user's id",
+        "students.id must exist",
+        "sections.id must exist",
+        "subjects.id must exist",
+        "Unique constraint: (student_id, section_id, subject_id, attendance_date) prevents duplicates"
+      ],
+      "flow_status": "CENTRALIZED",
+      "issues": [
+        "Foreign key constraints ARE defined for attendance table (unlike other tables)",
+        "If any referenced record doesn't exist, insert will fail due to FK constraint"
+      ],
+      "used_by": ["teacher attendance page", "grade calculations (attendance percentage)"]
+    },
+    "create_assignment": {
+      "description": "Teacher creates assignment for section/subject",
+      "tables_written": ["assignments"],
+      "columns_updated": {
+        "assignments": ["teacher_id", "section_id", "subject_id", "title", "description", "assignment_type", "max_score", "due_date", "is_active"]
+      },
+      "tables_read": ["teachers", "sections", "subjects"],
+      "foreign_keys_used": [
+        "assignments.teacher_id → teachers.id (indexed but no FK constraint)",
+        "assignments.section_id → sections.id (indexed but no FK constraint)",
+        "assignments.subject_id → subjects.id (indexed but no FK constraint)"
+      ],
+      "relationships_required": [
+        "teachers.id must exist",
+        "sections.id must exist",
+        "subjects.id must exist"
+      ],
+      "flow_status": "CENTRALIZED",
+      "issues": [
+        "No foreign key constraints on assignments table",
+        "If referenced records don't exist, assignment creation may succeed but data will be orphaned"
+      ],
+      "used_by": ["teacher assignment management", "student assignment list"]
+    }
+  },
+  "table_relationships": {
+    "users": {
+      "primary_key": "id",
+      "foreign_keys_out": [],
+      "foreign_keys_in": [
+        "students.user_id → users.id (NO CONSTRAINT)",
+        "teachers.user_id → users.id (NO CONSTRAINT)",
+        "sections.adviser_id → users.id (NO CONSTRAINT)",
+        "users.approved_by → users.id (NO CONSTRAINT)",
+        "audit_logs.user_id → users.id (NO CONSTRAINT)"
+      ],
+      "related_tables": ["students", "teachers", "sections", "audit_logs"],
+      "issues": [
+        "No foreign key constraints on any incoming references",
+        "If user is deleted, orphaned records in students, teachers, sections will remain"
+      ]
+    },
+    "students": {
+      "primary_key": "id",
+      "foreign_keys_out": [
+        "students.user_id → users.id (NO CONSTRAINT)",
+        "students.section_id → sections.id (NO CONSTRAINT)"
+      ],
+      "foreign_keys_in": [
+        "grades.student_id → students.id (NO CONSTRAINT)",
+        "attendance.student_id → students.id (HAS CONSTRAINT: ON DELETE CASCADE)",
+        "student_classes.student_id → students.id (NO CONSTRAINT)"
+      ],
+      "related_tables": ["users", "sections", "grades", "attendance", "student_classes"],
+      "issues": [
+        "No foreign key constraint on students.user_id → users.id",
+        "No foreign key constraint on students.section_id → sections.id",
+        "If user is deleted, student record remains orphaned",
+        "If section is deleted, students.section_id becomes invalid"
+      ]
+    },
+    "teachers": {
+      "primary_key": "id",
+      "foreign_keys_out": [
+        "teachers.user_id → users.id (NO CONSTRAINT, but UNIQUE)"
+      ],
+      "foreign_keys_in": [
+        "classes.teacher_id → teachers.id (NO CONSTRAINT)",
+        "grades.teacher_id → teachers.id (NO CONSTRAINT)",
+        "attendance.teacher_id → teachers.id (HAS CONSTRAINT: ON DELETE CASCADE)",
+        "assignments.teacher_id → teachers.id (NO CONSTRAINT)",
+        "teacher_schedules.teacher_id → teachers.id (NO CONSTRAINT)"
+      ],
+      "related_tables": ["users", "classes", "grades", "attendance", "assignments", "teacher_schedules"],
+      "issues": [
+        "No foreign key constraint on teachers.user_id → users.id",
+        "If user with role='teacher' exists but teachers record missing, all teacher features break",
+        "If teachers record is deleted, all classes, grades, attendance referencing it become orphaned"
+      ]
+    },
+    "sections": {
+      "primary_key": "id",
+      "foreign_keys_out": [
+        "sections.adviser_id → users.id (NO CONSTRAINT)"
+      ],
+      "foreign_keys_in": [
+        "students.section_id → sections.id (NO CONSTRAINT)",
+        "classes.section_id → sections.id (NO CONSTRAINT)",
+        "attendance.section_id → sections.id (HAS CONSTRAINT: ON DELETE CASCADE)",
+        "assignments.section_id → sections.id (NO CONSTRAINT)"
+      ],
+      "related_tables": ["users", "students", "classes", "attendance", "assignments"],
+      "issues": [
+        "No foreign key constraint on sections.adviser_id → users.id",
+        "No foreign key constraints on incoming references except attendance",
+        "If section is deleted, students, classes, assignments become orphaned"
+      ]
+    },
+    "classes": {
+      "primary_key": "id",
+      "foreign_keys_out": [
+        "classes.section_id → sections.id (NO CONSTRAINT)",
+        "classes.subject_id → subjects.id (NO CONSTRAINT)",
+        "classes.teacher_id → teachers.id (NO CONSTRAINT)"
+      ],
+      "foreign_keys_in": [
+        "student_classes.class_id → classes.id (NO CONSTRAINT)",
+        "teacher_schedules.class_id → classes.id (NO CONSTRAINT)"
+      ],
+      "related_tables": ["sections", "subjects", "teachers", "student_classes", "teacher_schedules"],
+      "issues": [
+        "No foreign key constraints on any relationships",
+        "Unique constraint exists: (section_id, subject_id, teacher_id, school_year)",
+        "If section, subject, or teacher is deleted, class becomes orphaned"
+      ]
+    },
+    "grades": {
+      "primary_key": "id",
+      "foreign_keys_out": [
+        "grades.student_id → students.id (NO CONSTRAINT)",
+        "grades.section_id → sections.id (NO CONSTRAINT)",
+        "grades.subject_id → subjects.id (NO CONSTRAINT)",
+        "grades.teacher_id → teachers.id (NO CONSTRAINT)"
+      ],
+      "foreign_keys_in": [],
+      "related_tables": ["students", "sections", "subjects", "teachers"],
+      "issues": [
+        "No foreign key constraints on any relationships",
+        "If student, section, subject, or teacher is deleted, grade becomes orphaned",
+        "Grade calculations depend on all four relationships being valid"
+      ]
+    },
+    "subjects": {
+      "primary_key": "id",
+      "foreign_keys_out": [],
+      "foreign_keys_in": [
+        "classes.subject_id → subjects.id (NO CONSTRAINT)",
+        "grades.subject_id → subjects.id (NO CONSTRAINT)",
+        "attendance.subject_id → subjects.id (HAS CONSTRAINT: ON DELETE CASCADE)",
+        "assignments.subject_id → subjects.id (NO CONSTRAINT)"
+      ],
+      "related_tables": ["classes", "grades", "attendance", "assignments"],
+      "issues": [
+        "Only attendance has foreign key constraint",
+        "If subject is deleted, classes, grades, assignments become orphaned"
+      ]
+    },
+    "attendance": {
+      "primary_key": "id",
+      "foreign_keys_out": [
+        "attendance.student_id → students.id (HAS CONSTRAINT: ON DELETE CASCADE)",
+        "attendance.teacher_id → teachers.id (HAS CONSTRAINT: ON DELETE CASCADE)",
+        "attendance.section_id → sections.id (HAS CONSTRAINT: ON DELETE CASCADE)",
+        "attendance.subject_id → subjects.id (HAS CONSTRAINT: ON DELETE CASCADE)"
+      ],
+      "foreign_keys_in": [],
+      "related_tables": ["students", "teachers", "sections", "subjects"],
+      "issues": [
+        "ONLY table with proper foreign key constraints!",
+        "This is the model that other tables should follow"
+      ]
+    },
+    "student_classes": {
+      "primary_key": "id",
+      "foreign_keys_out": [
+        "student_classes.student_id → students.id (NO CONSTRAINT)",
+        "student_classes.class_id → classes.id (NO CONSTRAINT)"
+      ],
+      "foreign_keys_in": [],
+      "related_tables": ["students", "classes"],
+      "issues": [
+        "No foreign key constraints",
+        "Unique constraint: (student_id, class_id)",
+        "If student or class is deleted, enrollment record becomes orphaned"
+      ]
+    },
+    "teacher_schedules": {
+      "primary_key": "id",
+      "foreign_keys_out": [
+        "teacher_schedules.teacher_id → teachers.id (NO CONSTRAINT)",
+        "teacher_schedules.class_id → classes.id (NO CONSTRAINT)"
+      ],
+      "foreign_keys_in": [],
+      "related_tables": ["teachers", "classes"],
+      "issues": [
+        "No foreign key constraints",
+        "Unique constraint: (teacher_id, day_of_week, start_time, end_time)",
+        "If teacher or class is deleted, schedule becomes orphaned"
+      ]
+    },
+    "assignments": {
+      "primary_key": "id",
+      "foreign_keys_out": [
+        "assignments.teacher_id → teachers.id (NO CONSTRAINT)",
+        "assignments.section_id → sections.id (NO CONSTRAINT)",
+        "assignments.subject_id → subjects.id (NO CONSTRAINT)"
+      ],
+      "foreign_keys_in": [],
+      "related_tables": ["teachers", "sections", "subjects"],
+      "issues": [
+        "No foreign key constraints",
+        "If teacher, section, or subject is deleted, assignment becomes orphaned"
+      ]
+    }
+  },
+  "foreign_key_graph": {
+    "users": {
+      "references": [],
+      "referenced_by": [
+        "students.user_id",
+        "teachers.user_id",
+        "sections.adviser_id",
+        "users.approved_by",
+        "audit_logs.user_id"
+      ],
+      "constraints": "NONE"
+    },
+    "students": {
+      "references": [
+        "users.id (NO CONSTRAINT)",
+        "sections.id (NO CONSTRAINT)"
+      ],
+      "referenced_by": [
+        "grades.student_id (NO CONSTRAINT)",
+        "attendance.student_id (HAS CONSTRAINT)",
+        "student_classes.student_id (NO CONSTRAINT)"
+      ],
+      "constraints": "PARTIAL (only attendance has FK)"
+    },
+    "teachers": {
+      "references": [
+        "users.id (NO CONSTRAINT, UNIQUE)"
+      ],
+      "referenced_by": [
+        "classes.teacher_id (NO CONSTRAINT)",
+        "grades.teacher_id (NO CONSTRAINT)",
+        "attendance.teacher_id (HAS CONSTRAINT)",
+        "assignments.teacher_id (NO CONSTRAINT)",
+        "teacher_schedules.teacher_id (NO CONSTRAINT)"
+      ],
+      "constraints": "PARTIAL (only attendance has FK)"
+    },
+    "sections": {
+      "references": [
+        "users.id via adviser_id (NO CONSTRAINT)"
+      ],
+      "referenced_by": [
+        "students.section_id (NO CONSTRAINT)",
+        "classes.section_id (NO CONSTRAINT)",
+        "attendance.section_id (HAS CONSTRAINT)",
+        "assignments.section_id (NO CONSTRAINT)"
+      ],
+      "constraints": "PARTIAL (only attendance has FK)"
+    },
+    "subjects": {
+      "references": [],
+      "referenced_by": [
+        "classes.subject_id (NO CONSTRAINT)",
+        "grades.subject_id (NO CONSTRAINT)",
+        "attendance.subject_id (HAS CONSTRAINT)",
+        "assignments.subject_id (NO CONSTRAINT)"
+      ],
+      "constraints": "PARTIAL (only attendance has FK)"
+    },
+    "classes": {
+      "references": [
+        "sections.id (NO CONSTRAINT)",
+        "subjects.id (NO CONSTRAINT)",
+        "teachers.id (NO CONSTRAINT)"
+      ],
+      "referenced_by": [
+        "student_classes.class_id (NO CONSTRAINT)",
+        "teacher_schedules.class_id (NO CONSTRAINT)"
+      ],
+      "constraints": "NONE"
+    },
+    "grades": {
+      "references": [
+        "students.id (NO CONSTRAINT)",
+        "sections.id (NO CONSTRAINT)",
+        "subjects.id (NO CONSTRAINT)",
+        "teachers.id (NO CONSTRAINT)"
+      ],
+      "referenced_by": [],
+      "constraints": "NONE"
+    },
+    "attendance": {
+      "references": [
+        "students.id (HAS CONSTRAINT: ON DELETE CASCADE)",
+        "teachers.id (HAS CONSTRAINT: ON DELETE CASCADE)",
+        "sections.id (HAS CONSTRAINT: ON DELETE CASCADE)",
+        "subjects.id (HAS CONSTRAINT: ON DELETE CASCADE)"
+      ],
+      "referenced_by": [],
+      "constraints": "ALL CONSTRAINTS PRESENT"
+    }
+  },
+  "missing_links": [
+    {
+      "issue": "No foreign key constraint: students.user_id → users.id",
+      "severity": "HIGH",
+      "impact": "If user is deleted, student record becomes orphaned. Data integrity compromised.",
+      "affected_features": ["student registration", "student login", "student dashboard", "grade viewing"]
+    },
+    {
+      "issue": "No foreign key constraint: teachers.user_id → users.id",
+      "severity": "CRITICAL",
+      "impact": "If user with role='teacher' exists but teachers record is missing, all teacher features break. If user is deleted, teacher record becomes orphaned.",
+      "affected_features": ["teacher creation", "class creation", "grade encoding", "teacher dashboard", "adviser assignment"]
+    },
+    {
+      "issue": "No foreign key constraint: students.section_id → sections.id",
+      "severity": "HIGH",
+      "impact": "If section is deleted, students.section_id becomes invalid. Student enrollment breaks.",
+      "affected_features": ["student enrollment", "student dashboard", "class enrollment"]
+    },
+    {
+      "issue": "No foreign key constraint: classes.section_id → sections.id",
+      "severity": "HIGH",
+      "impact": "If section is deleted, classes become orphaned. Class management breaks.",
+      "affected_features": ["class creation", "teacher dashboard", "student schedule"]
+    },
+    {
+      "issue": "No foreign key constraint: classes.subject_id → subjects.id",
+      "severity": "MEDIUM",
+      "impact": "If subject is deleted, classes become orphaned. Subject assignment breaks.",
+      "affected_features": ["class creation", "grade encoding", "subject management"]
+    },
+    {
+      "issue": "No foreign key constraint: classes.teacher_id → teachers.id",
+      "severity": "CRITICAL",
+      "impact": "If teacher record is deleted, all classes become orphaned. Class management completely breaks.",
+      "affected_features": ["class creation", "teacher dashboard", "grade encoding", "student schedule"]
+    },
+    {
+      "issue": "No foreign key constraint: grades.student_id → students.id",
+      "severity": "HIGH",
+      "impact": "If student is deleted, grades become orphaned. Grade calculations may fail.",
+      "affected_features": ["grade encoding", "grade viewing", "report cards"]
+    },
+    {
+      "issue": "No foreign key constraint: grades.teacher_id → teachers.id",
+      "severity": "HIGH",
+      "impact": "If teacher is deleted, grades become orphaned. Grade attribution breaks.",
+      "affected_features": ["grade encoding", "grade viewing", "teacher grade management"]
+    },
+    {
+      "issue": "No foreign key constraint: sections.adviser_id → users.id",
+      "severity": "MEDIUM",
+      "impact": "If user is deleted, section.adviser_id becomes invalid. Adviser assignment breaks.",
+      "affected_features": ["adviser assignment", "teacher dashboard (advisory sections)"]
+    },
+    {
+      "issue": "Missing teachers record when user role = 'teacher'",
+      "severity": "CRITICAL",
+      "impact": "If user is created with role='teacher' but teachers record is not created, all teacher features fail. Code tries to create it via TeacherProfileHelper, but if that fails, system breaks.",
+      "affected_features": ["teacher dashboard", "class creation", "grade encoding", "teacher dropdowns"]
+    },
+    {
+      "issue": "No foreign key constraint: student_classes.student_id → students.id",
+      "severity": "MEDIUM",
+      "impact": "If student is deleted, enrollment records become orphaned.",
+      "affected_features": ["student enrollment", "class enrollment"]
+    },
+    {
+      "issue": "No foreign key constraint: student_classes.class_id → classes.id",
+      "severity": "MEDIUM",
+      "impact": "If class is deleted, enrollment records become orphaned.",
+      "affected_features": ["class enrollment", "student schedule"]
+    },
+    {
+      "issue": "No foreign key constraint: teacher_schedules.teacher_id → teachers.id",
+      "severity": "MEDIUM",
+      "impact": "If teacher is deleted, schedules become orphaned.",
+      "affected_features": ["schedule management", "schedule conflict detection"]
+    },
+    {
+      "issue": "No foreign key constraint: teacher_schedules.class_id → classes.id",
+      "severity": "MEDIUM",
+      "impact": "If class is deleted, schedules become orphaned.",
+      "affected_features": ["schedule management"]
+    },
+    {
+      "issue": "No foreign key constraint: assignments.teacher_id → teachers.id",
+      "severity": "LOW",
+      "impact": "If teacher is deleted, assignments become orphaned.",
+      "affected_features": ["assignment management"]
+    },
+    {
+      "issue": "No foreign key constraint: assignments.section_id → sections.id",
+      "severity": "LOW",
+      "impact": "If section is deleted, assignments become orphaned.",
+      "affected_features": ["assignment management"]
+    },
+    {
+      "issue": "No foreign key constraint: assignments.subject_id → subjects.id",
+      "severity": "LOW",
+      "impact": "If subject is deleted, assignments become orphaned.",
+      "affected_features": ["assignment management"]
+    },
+    {
+      "issue": "Code references 'advisers' table that doesn't exist in schema",
+      "severity": "MEDIUM",
+      "impact": "In AdminController approve_user(), code tries to INSERT INTO advisers table when role='adviser', but this table doesn't exist. This will cause errors.",
+      "affected_features": ["user approval workflow"]
+    }
+  ],
+  "recommended_fixes": [
+    {
+      "priority": "CRITICAL",
+      "fix": "Add foreign key constraint: teachers.user_id → users.id ON DELETE CASCADE",
+      "reason": "Ensures data integrity. If user is deleted, teacher record is automatically deleted. Prevents orphaned teacher records.",
+      "sql": "ALTER TABLE teachers ADD CONSTRAINT fk_teachers_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;"
+    },
+    {
+      "priority": "CRITICAL",
+      "fix": "Add foreign key constraint: students.user_id → users.id ON DELETE CASCADE",
+      "reason": "Ensures data integrity. If user is deleted, student record is automatically deleted. Prevents orphaned student records.",
+      "sql": "ALTER TABLE students ADD CONSTRAINT fk_students_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;"
+    },
+    {
+      "priority": "CRITICAL",
+      "fix": "Add foreign key constraint: classes.teacher_id → teachers.id ON DELETE RESTRICT",
+      "reason": "Prevents deletion of teacher if classes exist. Ensures classes always have valid teacher reference.",
+      "sql": "ALTER TABLE classes ADD CONSTRAINT fk_classes_teacher FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE RESTRICT;"
+    },
+    {
+      "priority": "HIGH",
+      "fix": "Add foreign key constraint: students.section_id → sections.id ON DELETE SET NULL",
+      "reason": "If section is deleted, set student section to NULL rather than deleting student. Allows student to be reassigned.",
+      "sql": "ALTER TABLE students ADD CONSTRAINT fk_students_section FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE SET NULL;"
+    },
+    {
+      "priority": "HIGH",
+      "fix": "Add foreign key constraint: classes.section_id → sections.id ON DELETE RESTRICT",
+      "reason": "Prevents deletion of section if classes exist. Ensures classes always have valid section reference.",
+      "sql": "ALTER TABLE classes ADD CONSTRAINT fk_classes_section FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE RESTRICT;"
+    },
+    {
+      "priority": "HIGH",
+      "fix": "Add foreign key constraint: classes.subject_id → subjects.id ON DELETE RESTRICT",
+      "reason": "Prevents deletion of subject if classes exist. Ensures classes always have valid subject reference.",
+      "sql": "ALTER TABLE classes ADD CONSTRAINT fk_classes_subject FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE RESTRICT;"
+    },
+    {
+      "priority": "HIGH",
+      "fix": "Add foreign key constraint: grades.student_id → students.id ON DELETE CASCADE",
+      "reason": "If student is deleted, grades should be deleted. Maintains data integrity.",
+      "sql": "ALTER TABLE grades ADD CONSTRAINT fk_grades_student FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE;"
+    },
+    {
+      "priority": "HIGH",
+      "fix": "Add foreign key constraint: grades.teacher_id → teachers.id ON DELETE RESTRICT",
+      "reason": "Prevents deletion of teacher if grades exist. Ensures grades always have valid teacher reference.",
+      "sql": "ALTER TABLE grades ADD CONSTRAINT fk_grades_teacher FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE RESTRICT;"
+    },
+    {
+      "priority": "HIGH",
+      "fix": "Add foreign key constraint: grades.section_id → sections.id ON DELETE RESTRICT",
+      "reason": "Prevents deletion of section if grades exist. Ensures grades always have valid section reference.",
+      "sql": "ALTER TABLE grades ADD CONSTRAINT fk_grades_section FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE RESTRICT;"
+    },
+    {
+      "priority": "HIGH",
+      "fix": "Add foreign key constraint: grades.subject_id → subjects.id ON DELETE RESTRICT",
+      "reason": "Prevents deletion of subject if grades exist. Ensures grades always have valid subject reference.",
+      "sql": "ALTER TABLE grades ADD CONSTRAINT fk_grades_subject FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE RESTRICT;"
+    },
+    {
+      "priority": "MEDIUM",
+      "fix": "Add foreign key constraint: sections.adviser_id → users.id ON DELETE SET NULL",
+      "reason": "If user is deleted, set section adviser to NULL. Allows section to exist without adviser.",
+      "sql": "ALTER TABLE sections ADD CONSTRAINT fk_sections_adviser FOREIGN KEY (adviser_id) REFERENCES users(id) ON DELETE SET NULL;"
+    },
+    {
+      "priority": "MEDIUM",
+      "fix": "Add foreign key constraint: student_classes.student_id → students.id ON DELETE CASCADE",
+      "reason": "If student is deleted, enrollment records should be deleted.",
+      "sql": "ALTER TABLE student_classes ADD CONSTRAINT fk_student_classes_student FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE;"
+    },
+    {
+      "priority": "MEDIUM",
+      "fix": "Add foreign key constraint: student_classes.class_id → classes.id ON DELETE CASCADE",
+      "reason": "If class is deleted, enrollment records should be deleted.",
+      "sql": "ALTER TABLE student_classes ADD CONSTRAINT fk_student_classes_class FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE;"
+    },
+    {
+      "priority": "MEDIUM",
+      "fix": "Add foreign key constraint: teacher_schedules.teacher_id → teachers.id ON DELETE CASCADE",
+      "reason": "If teacher is deleted, schedules should be deleted.",
+      "sql": "ALTER TABLE teacher_schedules ADD CONSTRAINT fk_teacher_schedules_teacher FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE CASCADE;"
+    },
+    {
+      "priority": "MEDIUM",
+      "fix": "Add foreign key constraint: teacher_schedules.class_id → classes.id ON DELETE CASCADE",
+      "reason": "If class is deleted, schedules should be deleted.",
+      "sql": "ALTER TABLE teacher_schedules ADD CONSTRAINT fk_teacher_schedules_class FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE;"
+    },
+    {
+      "priority": "LOW",
+      "fix": "Add foreign key constraints to assignments table",
+      "reason": "Ensure assignments always reference valid teacher, section, and subject.",
+      "sql": [
+        "ALTER TABLE assignments ADD CONSTRAINT fk_assignments_teacher FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE CASCADE;",
+        "ALTER TABLE assignments ADD CONSTRAINT fk_assignments_section FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE;",
+        "ALTER TABLE assignments ADD CONSTRAINT fk_assignments_subject FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE;"
+      ]
+    },
+    {
+      "priority": "MEDIUM",
+      "fix": "Remove reference to non-existent 'advisers' table in AdminController",
+      "reason": "Code in AdminController::approve_user() tries to INSERT INTO advisers table which doesn't exist. This will cause errors when approving adviser users.",
+      "action": "Remove lines 241-248 in app/Controllers/AdminController.php that reference 'advisers' table"
+    },
+    {
+      "priority": "HIGH",
+      "fix": "Ensure teachers record is always created when user role = 'teacher' or 'adviser'",
+      "reason": "Add validation/rollback if TeacherProfileHelper::save() fails during user creation. Currently, if it fails, user is created but teachers record is missing, breaking all teacher features.",
+      "action": "In api/create_user.php, ensure transaction rollback if teacher profile creation fails"
+    }
+  ],
+  "full_data_flow_diagram": "users\n  ├── students (via user_id) [NO FK CONSTRAINT]\n  │   ├── grades (via student_id) [NO FK CONSTRAINT]\n  │   ├── attendance (via student_id) [HAS FK: ON DELETE CASCADE]\n  │   └── student_classes (via student_id) [NO FK CONSTRAINT]\n  │\n  ├── teachers (via user_id) [NO FK CONSTRAINT, UNIQUE]\n  │   ├── classes (via teacher_id) [NO FK CONSTRAINT]\n  │   │   ├── student_classes (via class_id) [NO FK CONSTRAINT]\n  │   │   └── teacher_schedules (via class_id) [NO FK CONSTRAINT]\n  │   │\n  │   ├── grades (via teacher_id) [NO FK CONSTRAINT]\n  │   ├── attendance (via teacher_id) [HAS FK: ON DELETE CASCADE]\n  │   ├── assignments (via teacher_id) [NO FK CONSTRAINT]\n  │   └── teacher_schedules (via teacher_id) [NO FK CONSTRAINT]\n  │\n  ├── sections (via adviser_id) [NO FK CONSTRAINT]\n  │   ├── students (via section_id) [NO FK CONSTRAINT]\n  │   ├── classes (via section_id) [NO FK CONSTRAINT]\n  │   ├── attendance (via section_id) [HAS FK: ON DELETE CASCADE]\n  │   └── assignments (via section_id) [NO FK CONSTRAINT]\n  │\n  └── audit_logs (via user_id) [NO FK CONSTRAINT]\n\nsubjects\n  ├── classes (via subject_id) [NO FK CONSTRAINT]\n  ├── grades (via subject_id) [NO FK CONSTRAINT]\n  ├── attendance (via subject_id) [HAS FK: ON DELETE CASCADE]\n  └── assignments (via subject_id) [NO FK CONSTRAINT]\n\nCRITICAL PATH:\n1. User Creation → Must create teachers/students record immediately\n2. Teacher Creation → Must have teachers.user_id = users.id\n3. Class Creation → Requires: sections.id, subjects.id, teachers.id\n4. Student Enrollment → Requires: students.id, sections.id\n5. Grade Encoding → Requires: students.id, sections.id, subjects.id, teachers.id\n6. Attendance → Requires: students.id, teachers.id, sections.id, subjects.id (ALL HAVE FK CONSTRAINTS)\n\nBROKEN FLOWS:\n- If user role='teacher' but teachers record missing → ALL teacher features break\n- If students.section_id is NULL → Student dashboard shows empty, but grades/attendance may still work\n- If classes reference deleted teacher → Teacher dashboard breaks\n- If grades reference deleted student/teacher/section/subject → Grade calculations may fail\n\nWORKING FLOWS:\n- Attendance table has ALL foreign key constraints properly defined\n- User creation via api/create_user.php properly creates teachers record via TeacherProfileHelper\n- Grade encoding properly verifies teacher access via classes table\n- Student enrollment properly checks section capacity"
+}
+
